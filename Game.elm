@@ -9,31 +9,52 @@ import Dict (Dict)
 
 import Dict
 import Maybe
+import Maybe (..)
 import Signal
 
 import Model
-import Model (Point, Square, Model, SquareId)
+import Model (Point, Square, Model, SquareId, Dir(..))
 
 import Set (Set)
 import Set
 
-import Keyboard
+import Keyboard (KeyCode)
 import Time (..)
   
-type alias Interface = { model : Model, selected : Maybe SquareId }
+  
+type alias KeyMap = Dict KeyCode Event
+type alias Interface = { model : Model, selected : Maybe SquareId,  keyMap : KeyMap }
   
   
   
   
-type Action = Select SquareId | GoLeft | GoRight | GoUp | GoDown
+type Action = Select SquareId | KeyDown KeyCode
+type Event = GoUp | GoLeft | GoRight | GoDown
   
   
 update : Action -> Interface -> Interface
 update action interface =
   case action of  
-    Select k -> select k interface
-    
-    
+    Select sq -> select sq interface
+    KeyDown key -> 
+      maybe modelEvent 
+        (Dict.get key (interface.keyMap) `andThen` 
+        updateEvent interface)
+        interface
+      
+      
+modelEvent : Model.Event -> Interface -> Interface
+modelEvent event interface = { interface | model <- Model.event event interface.model }
+
+
+
+updateEvent : Interface -> Event -> Maybe Model.Event
+updateEvent interface event = case event of
+  GoUp    -> Maybe.map (Model.Rotate UpDir)     interface.selected
+  GoLeft  -> Maybe.map (Model.Rotate LeftDir)   interface.selected
+  GoRight -> Maybe.map (Model.Rotate RightDir)  interface.selected 
+  GoDown  -> Maybe.map (Model.Rotate DownDir)   interface.selected
+
     
 
 maybe : (a -> b -> b) -> Maybe a -> b -> b
@@ -42,22 +63,23 @@ maybe f ma b =
     Nothing -> b
     Just a  -> f a b
 
-
-
-keyActions : Dict Keyboard.KeyCode Action
-keyActions = Dict.fromList [
-  (38, GoUp), 
-  (40, GoDown),
-  (37, GoLeft),
-  (39, GoRight)]
-
     
 select : SquareId -> Interface -> Interface
 select k interface = let selected = if (interface.selected == Just k) then Nothing else Just k
                      in {interface | selected <- selected}    
 
-                     
-initial = { model = Model.initial, selected = Nothing }
+       
+
+defaultKeys : KeyMap
+defaultKeys = Dict.fromList [
+  (38, GoUp), 
+  (40, GoDown),
+  (37, GoLeft),
+  (39, GoRight)]       
+       
+       
+initial : Interface
+initial = { model = Model.initial, selected = Nothing, keyMap = defaultKeys }
 
 
 

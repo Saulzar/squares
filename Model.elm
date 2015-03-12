@@ -14,6 +14,9 @@ import Signal
 type alias Point a = { x:a, y:a }
 type alias Coord = Point Int
 
+type Dir = UpDir | LeftDir | RightDir | DownDir
+
+type Event = Rotate Dir SquareId
 
 
 type alias Moving = { rotation:Int, final:Int, clockwise: Bool, pivot:Int, dest:Coord }
@@ -24,6 +27,8 @@ type alias SquareId = Int
 
 type alias Model = { squares:Dict SquareId Square, max: Coord }
 
+event : Event -> Model -> Model
+event event model = model
 
 
 initial : Model
