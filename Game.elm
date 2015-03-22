@@ -126,8 +126,8 @@ main = Signal.map view model
 
 
 squareColour : Interface -> SquareId -> String
-squareColour i s = let selectedCol = "#7FD13B"
-                       defaultCol = "#4E9A06"
+squareColour i s = let selectedCol = "skyblue"
+                       defaultCol = "royalblue"
                    in if (i.selected == Just s) then selectedCol else defaultCol
 
 
@@ -147,6 +147,8 @@ showSquare : Interface -> (SquareId, Square) -> Html
 showSquare i (k, sq) = 
   let square = rectAt sq.pos 1 1
         ([ fill (squareColour i k),
+           stroke "black",
+           strokeWidth "0.02",
           onClick (sendUpdate (Select k))
         ] ++ catMaybes [rotation `Maybe.map` (Model.rotation sq)])
         
@@ -155,7 +157,7 @@ showSquare i (k, sq) =
     g [] (catMaybes [Just square, pivot])
     
     
-rectAt : Coord -> Int -> Int -> List Attribute -> Html
+rectAt : Point a -> Int -> Int -> List Attribute -> Html
 rectAt pos w h attrs = rect (width (toString w) :: height (toString h) :: position pos ++ attrs) []
 
 
@@ -165,7 +167,7 @@ position p = [x (toString p.x), y (toString p.y)]
 centre : Point a -> List Attribute
 centre p = [cx (toString p.x), cy (toString p.y)]
 
-rotate : a -> Point a -> Attribute
+rotate : b -> Point a -> Attribute
 rotate deg centre = transform (String.concat ["rotate (", toString deg, ",", toString centre.x, ",", toString centre.y, ")"])
        
       
