@@ -18,12 +18,15 @@ cabal-version:       >=1.10
 executable squareserver
   main-is:             Main.hs
   -- other-modules:       
-  default-extensions:    OverloadedStrings, DeriveGeneric 
+  default-extensions:    OverloadedStrings, DeriveGeneric, TemplateHaskell 
   build-depends:       base >=4.6 && <4.7,
                        websockets,
                        text,
+                       containers,
                        transformers,
                        aeson,
-                       bytestring
+                       bytestring,
+                       stm,
+                       lens
   -- hs-source-dirs:      
   default-language:    Haskell2010
