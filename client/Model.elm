@@ -1,6 +1,6 @@
-
-
 module Model where
+
+import Util
 
 import List 
 import Dict (Dict)
@@ -74,8 +74,7 @@ scale :  Vec -> Int -> Coord
 scale a s = {x = s * a.x, y = s * a.y}
 
 
-bool : Bool -> a -> Maybe a
-bool b x = if b then Just x else Nothing
+
 
 relRotate : Coord -> Model -> Int -> Vec -> Vec -> Maybe Rotation
 relRotate pos model corner r u = 
@@ -109,10 +108,7 @@ tryRotate pos model dir = let rotate = relRotate pos model in
 
 
 
-concatMaybes : Maybe a -> Maybe a -> Maybe a
-concatMaybes a b = case a of 
-  Just a -> Just a
-  _      -> b
+
 
 
 tryRotation : Model -> Dir -> Square -> Square

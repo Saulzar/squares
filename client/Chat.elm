@@ -1,10 +1,3 @@
-
-import Util
-
-import Svg (..)
-import Svg.Attributes (..)
-import Svg.Events (..)
-
 import Html (Html)
 
 import List 
@@ -15,75 +8,40 @@ import Maybe
 import Maybe (..)
 import Signal
 
-import Model
-import Model (Point, Square, Model, SquareId, Dir(..), Coord)
-
-import Set (Set)
-import Set
-
-import Keyboard (KeyCode)
-import Keyboard
-import Time
-
 import Debug
 import String
   
-  
-type alias KeyMap = Dict KeyCode Event
-type alias Interface = { model : Model, selected : Maybe SquareId,  keyMap : KeyMap }
+import Util  
 
+type alias UserName = String
+  
+type alias Users = Dict KeyCode UserName
+type alias Chat {sender : UserName, message : String}
 
-type Action = Select SquareId | KeyDown KeyCode | Animate Int
-type Event = GoUp | GoLeft | GoRight | GoDown
+type alias Model = {id : Maybe Int, users :  Dict KeyCode Event : List Chat}
+
+type Post = Post {message : String}
+
+type Action 
+  = Connect {id : Int, name : String}
+    | Disconnect {id : Int}
+    | Chat {sender : Int, message : String}
+    | Error {reason : String}
   
   
-update : Action -> Interface -> Interface
-update action interface = 
+update : Action -> Model -> Model
+update action model = 
   case action of  
-    Animate dt -> animateModel dt interface
-    Select sq -> select sq interface
-    KeyDown key -> 
-      maybe modelEvent 
-        (Dict.get key (interface.keyMap) `andThen` 
-        updateEvent interface)
-        interface
-      
-      
-mapModel : (Model -> Model) -> Interface -> Interface
-mapModel f interface = {interface | model <- f interface.model}
-      
-modelEvent : Model.Event -> Interface -> Interface
-modelEvent event = mapModel (Model.event event)
-
-animateModel : Int -> Interface -> Interface
-animateModel dt = mapModel (Model.animate dt)
-
-updateEvent : Interface -> Event -> Maybe Model.Event
-updateEvent interface event = case event of
-  GoUp    -> Maybe.map (Model.Rotate UpDir)     interface.selected
-  GoLeft  -> Maybe.map (Model.Rotate LeftDir)   interface.selected
-  GoRight -> Maybe.map (Model.Rotate RightDir)  interface.selected 
-  GoDown  -> Maybe.map (Model.Rotate DownDir)   interface.selected
-
+    Connect conn      -> model
+    Disconnect discon -> model
+    Chat chat         -> model
+    Error err         -> model
     
-
-
-    
-select : SquareId -> Interface -> Interface
-select k interface = let selected = if (interface.selected == Just k) then Nothing else Just k
-                     in {interface | selected <- selected}    
+ 
 
        
-
-defaultKeys : KeyMap
-defaultKeys = Dict.fromList [
-  (38, GoUp), 
-  (40, GoDown),
-  (37, GoLeft),
-  (39, GoRight)]       
        
-       
-initial : Interface
+initial : Model
 initial = { model = Model.initial, selected = Nothing, keyMap = defaultKeys }
 
 

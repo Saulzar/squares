@@ -1,7 +1,7 @@
 import Data.Char (isPunctuation, isSpace)
 import Data.Monoid (mappend)
 import Data.Text (Text)
-import Control.Exception (finally)
+import Control.Exception.Lifted (finally)
 import Control.Monad (forM_, forever)
 
 import Control.Monad.IO.Class (liftIO)
@@ -9,8 +9,9 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 import qualified Data.Map as M
-import Data.Traversable
+import Data.Foldable
 
+import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 
 import Control.Concurrent.STM 
@@ -23,27 +24,29 @@ import qualified Network.WebSockets as WS
 import Data.Aeson
 import GHC.Generics
 
-
-data Login = Login { _loginName :: !Text } deriving (Show, Generic)
-
-instance FromJSON Login
-instance ToJSON Login
+import ClientMessage
+import ServerMessage
 
 
-data ClientErr = LoginError { _errReason :: !Text } deriving (Show, Generic)
 
-instance FromJSON ClientErr
-instance ToJSON ClientErr
+data Client = Client
+  { _clientId :: Int
+  , _clientName :: Text
+  , _clientConn :: WS.Connection
+  }
+  
+instance Show Client where
+  show (Client id name _) = show id ++ ": " ++ show name
+  
 
-
-type Client = (Text, WS.Connection)
 data ServerState = ServerState 
   {  _serverUsers :: M.Map Int Client
   ,  _serverCount :: Int
-  }
+  } deriving (Show)
   
  
 $(makeLenses ''ServerState)
+$(makeLenses ''Client)
 
 -- Create a new, initial state:
 
@@ -54,7 +57,6 @@ newServerState = ServerState {
   }
   
   
-
 
 type Server a = ReaderT (TVar ServerState) IO a
 
@@ -80,92 +82,92 @@ modifyState' f = withState $ \stateVar -> do
     
 
 modifyState :: (ServerState -> ServerState) -> Server ()
-modifyState f = modifyState' (f &&& id)
+modifyState f = modifyState' (f &&& const ())
 
-
-main = undefined
-
-{-
 
 
 addClient :: Client -> ServerState -> ServerState
-addClient client state = state { serverUsers =  clients } where
-  clients = M.insert (client ^. clientId) client (serverUsers state)
+addClient client = over serverUsers (M.insert (client ^. clientId) client)
 
 -- Remove a client:
 
-removeClient :: Int -> Server ()
-removeClient clientId = state { serverUsers = M.delete clientId (serverUsers state) }
+removeClient :: Int -> ServerState -> ServerState
+removeClient clientId = over serverUsers (M.delete clientId)
 
-
-    
 
 broadcast :: (ToJSON a, Show a) =>  a -> Server ()
 broadcast a = do
-    print a
-    users <- fmap serverUsers serverState
+    liftIO $ print a
+    users <- fmap (^. serverUsers) serverState
     
-    forM_ users $ \(_, conn) -> 
-      sendJson conn a 
+    for_ users $ \client -> 
+      sendJson (client ^. clientConn) a 
 
     
-sendJson :: (MonadIO m, ToJSON a) => WS.Connection -> a -> IO ()
+sendJson :: (MonadIO m, ToJSON a) => WS.Connection -> a -> m ()
 sendJson conn err = liftIO $ WS.sendTextData conn (encode err)
 
 
-recieveJson :: (MonadIO m, FromJSON a) => WS.Connection -> IO (Maybe a)
-recieveJson = liftIO $ WS.receiveData conn >>= fmap decode    
+recieveJson :: (MonadIO m, FromJSON a) => WS.Connection -> m (Either String a)
+recieveJson conn = liftIO $ fmap eitherDecode' $ WS.receiveData conn
     
     
 newId :: Server Int
 newId = modifyState' inc where
   inc state = (over serverCount (+1) state, state ^. serverCount) 
 
-loginUser :: (Text, WS.Connection) -> Server ()
-loginUser  client = flip finally disconnect $ do
-  
-  id <- newId
-  modifyState $ addClient (Client id user conn)
-  
-  broadcast  (Connected (client ^. clientName) (client ^. client )
-  
-  
-  where
-    disconnect = do
-      modifyState $ removeClient (user, conn)
-      broadcast stateVar (Disconnected user)
-      
-      
 
-runClient :: TVar ServerState -> Client -> IO ()
-runClient stateVar (user, conn) = forever $ do
-    msg <- WS.recieveJson conn
+  
+loginUser :: Client -> Server ()
+loginUser  client = flip finally disconnect $ do      
+  modifyState $ addClient client
+  broadcast $ Connected i (client ^. clientName) 
+  runClient client
+
+  where   
+    i = client ^. clientId
+    disconnect = do
+      modifyState $ removeClient i
+      broadcast $ Disconnected i
     
-    case msg of 
-      UserMessage msg -> broadcast  (Message user msg)
-        
+
+
+runClient :: Client -> Server ()
+runClient client = run' where
+  run' = do
+    recieved <- recieveJson conn
+    either onErr onCmd recieved
+    
+  onCmd msg = case msg of 
+    ClientChat msg -> broadcast (Chat i msg) >> run'              
+    
+  onErr err = sendJson conn (ParseError (T.pack err))
+
+  i = client ^. clientId
+  conn = client ^. clientConn
+  
       
+        
 
 application :: TVar ServerState -> WS.ServerApp
-application pending = do
+application stateVar pending = do
     conn <- WS.acceptRequest pending
     WS.forkPingThread conn 30
+    
+    flip runReaderT stateVar $ do
+      msg <- recieveJson conn
+      i <- newId
+      
+      case msg of
+        Right (Login name) -> loginUser  (Client i name conn)
+        Left err           -> sendJson conn (T.pack err)
 
-    msg <- recieveJson
-    case msg of
-      Just (Login user) -> loginUser  (user, conn)
-      Nothing           -> sendError conn (LoginError "could not parse login")
-
-
-        
-        
--- The main function first creates a new state for the server, then spawns the
--- actual server. For this purpose, we use the simple server provided by
--- `WS.runServer`.
 
 main :: IO ()
 main = do
-    stateVar <- newTVar newServerState
-    WS.runServer "0.0.0.0" 9160 $ application state        -}
-        
+  stateVar <- newTVarIO newServerState
+  WS.runServer "0.0.0.0" 9160 $ application stateVar      
+    
+
+
         
