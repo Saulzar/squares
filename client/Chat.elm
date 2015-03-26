@@ -1,4 +1,6 @@
-import Html (Html)
+import Html (..)
+import Html.Attributes (..)
+import Html.Events (..)
 
 import List 
 import Dict (Dict)
@@ -13,117 +15,132 @@ import String
   
 import Util  
 
+
+import Json.Encode as Enc
+import Json.Decode as Dec
+
 type alias UserName = String
+type alias UserId = Int
   
-type alias Users = Dict KeyCode UserName
-type alias Chat {sender : UserName, message : String}
+type alias Users = Dict UserId UserName
+type alias ChatLog = {sender : UserName, message : String}
 
-type alias Model = {id : Maybe Int, users :  Dict KeyCode Event : List Chat}
 
-type Post = Post {message : String}
+type ClientMessage = ClientChat String
+
+type alias Model = 
+  { id : Maybe Int
+  , users :  Users
+  , log : List ChatLog
+  , chat : String,
+  , message : Maybe ClientMessage
+  }
+
+
+type ServerMessage 
+    = Connect Int String
+    | Disconnect Int
+    | Chat Int String
+    | Error String
+
+
 
 type Action 
-  = Connect {id : Int, name : String}
-    | Disconnect {id : Int}
-    | Chat {sender : Int, message : String}
-    | Error {reason : String}
-  
+  = ServerMessage ServerMessage 
+  | UpdateChat String
+  | PostChat String
+
   
 update : Action -> Model -> Model
-update action model = 
-  case action of  
-    Connect conn      -> model
-    Disconnect discon -> model
-    Chat chat         -> model
-    Error err         -> model
-    
- 
+update action model = case action of
+  ServerMessage message -> serverMessage message model
+  PostChat msg         -> {model | chat <- "", message = ClientChat msg}
+  UpdateChat msg       -> {model | chat <- msg}
+  
 
+clientMessage : Model -> String
+clientMessage action = case action of
+  PostChat chat -> 
+
+
+
+serverMessage : ServerMessage -> Model -> Model
+serverMessage message model =  case message of  
+    Connect id name      -> model
+    Disconnect id        -> model
+    Chat id message      -> model
+    Error reason         -> model
+    
        
        
 initial : Model
-initial = { model = Model.initial, selected = Nothing, keyMap = defaultKeys }
+initial = { id = Nothing, users = Dict.empty, log = [], chat = "" }
 
 
-keyActions : Signal (Maybe Action)
-keyActions = Signal.map (\k -> Just (KeyDown k)) Keyboard.lastPressed
-                     
-animateActions : Signal (Maybe Action)
-animateActions = Signal.map (always (Just (Animate 1))) (Time.fps 50) 
-                     
 inputs : Signal (Maybe Action)
-inputs = Signal.mergeMany  [
-    keyActions, 
-    Signal.subscribe updates,
-    animateActions
-  ]
+inputs = Signal.subscribe updateChan
+
+
                      
 -- manage the model of our application over time
-model : Signal Interface
-model = Signal.foldp (maybe update) initial inputs
+model : Signal Model
+model = Signal.foldp (Util.maybe update) initial inputs
     
     
 -- updates from user input
-updates : Signal.Channel (Maybe Action)
-updates = Signal.channel Nothing    
+updateChan : Signal.Channel (Maybe Action)
+updateChan = Signal.channel Nothing    
  
  
 sendUpdate : Action -> Signal.Message
-sendUpdate action = Signal.send updates (Just action)
+sendUpdate action = Signal.send updateChan (Just action)
 
 
-view : Interface -> Html
-view interface = 
-  let squares = List.map (showSquare interface) (Dict.toList interface.model.squares)
-  in svg [ version "1.1", x "0", y "0", viewBox "0 0 20 10" ] squares
+encodeMessage : Maybe ClientMessage -> String
+encodeMessage msg = Enc.encode 0 (messageValue msg)
+  
+  
+messageValue : ClientMessage -> Enc.Value
+messageValue msg = case msg of
+  ClientChat m -> Enc.object
+      [ ("message", Enc.string m)
+      ]
+
+
+view : Model -> Html
+view model =
+    div []
+        [ stringInput (model.chat)
+        ]
+
+  
+onEnter : Signal.Message -> Attribute
+onEnter message =
+    on "keydown"
+      (Dec.customDecoder keyCode is13)
+      (always message)
+
+is13 : Int -> Result String ()
+is13 code =
+  if code == 13 then Ok () else Err "not the right key code"
+
+
+
+stringInput : String -> Html
+stringInput chat =
+    input
+        [ placeholder "Send a message"
+        , value chat
+        , on "input" targetValue (sendUpdate << UpdateChat)
+        , onEnter (sendUpdate (PostChat chat))
+        ]
+        []
   
     
 main = Signal.map view model  
 
 
-squareColour : Interface -> SquareId -> String
-squareColour i s = let selectedCol = "skyblue"
-                       defaultCol = "royalblue"
-                   in if (i.selected == Just s) then selectedCol else defaultCol
 
 
 
-
-catMaybes : List (Maybe a) -> List a
-catMaybes = List.filterMap identity
-
-showPivot : (Coord, Int) -> Html
-showPivot (pivot, _) = circle ([fill "#000000", r "0.1"] ++ centre pivot) []
-
-rotation : (Coord, Int) -> Attribute
-rotation (pivot, deg) = rotate deg pivot
-
-
-showSquare : Interface -> (SquareId, Square) -> Html
-showSquare i (k, sq) = 
-  let square = rectAt sq.pos 1 1
-        ([ fill (squareColour i k),
-           stroke "black",
-           strokeWidth "0.02",
-          onClick (sendUpdate (Select k))
-        ] ++ catMaybes [rotation `Maybe.map` (Model.rotation sq)])
-        
-      pivot    = showPivot `Maybe.map` (Model.rotation sq)
-  in
-    g [] (catMaybes [Just square, pivot])
-    
-    
-rectAt : Point a -> Int -> Int -> List Attribute -> Html
-rectAt pos w h attrs = rect (width (toString w) :: height (toString h) :: position pos ++ attrs) []
-
-
-position : Point a -> List Attribute
-position p = [x (toString p.x), y (toString p.y)]
-      
-centre : Point a -> List Attribute
-centre p = [cx (toString p.x), cy (toString p.y)]
-
-rotate : b -> Point a -> Attribute
-rotate deg centre = transform (String.concat ["rotate (", toString deg, ",", toString centre.x, ",", toString centre.y, ")"])
-       
       
