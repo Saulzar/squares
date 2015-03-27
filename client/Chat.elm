@@ -23,18 +23,19 @@ type alias UserName = String
 type alias UserId = Int
   
 type alias Users = Dict UserId UserName
-type alias ChatLog = {sender : UserName, message : String}
+type alias ChatLog = {sender : UserName, message : String, status : Maybe Bool}
 
 
 type ClientMessage = ClientChat String
 
-type alias Model = 
-  { id : Maybe Int
+type alias Playing = 
+  { id : UserId
   , users :  Users
   , log : List ChatLog
-  , chat : String,
-  , message : Maybe ClientMessage
+  , chat : String
   }
+  
+type Model = Login | Playing Playing
 
 
 type ServerMessage 
@@ -51,17 +52,18 @@ type Action
   | PostChat String
 
   
-update : Action -> Model -> Model
+update : Action -> Model -> (Model, Maybe ClientMessage)
 update action model = case action of
   ServerMessage message -> serverMessage message model
-  PostChat msg         -> {model | chat <- "", message = ClientChat msg}
+  PostChat msg         -> {model | chat <- "", message <- Just (ClientChat msg)}
   UpdateChat msg       -> {model | chat <- msg}
   
 
 clientMessage : Model -> String
-clientMessage action = case action of
-  PostChat chat -> 
-
+clientMessage model = case model.message of 
+    Nothing     -> ""
+    Just  msg   -> encodeMessage msg
+                           
 
 
 serverMessage : ServerMessage -> Model -> Model
@@ -74,7 +76,13 @@ serverMessage message model =  case message of
        
        
 initial : Model
-initial = { id = Nothing, users = Dict.empty, log = [], chat = "" }
+initial = 
+  { id = Nothing
+  , users = Dict.empty
+  , log = []
+  , chat = ""
+  , message = Nothing 
+  }
 
 
 inputs : Signal (Maybe Action)
@@ -96,7 +104,7 @@ sendUpdate : Action -> Signal.Message
 sendUpdate action = Signal.send updateChan (Just action)
 
 
-encodeMessage : Maybe ClientMessage -> String
+encodeMessage : ClientMessage -> String
 encodeMessage msg = Enc.encode 0 (messageValue msg)
   
   
@@ -108,10 +116,10 @@ messageValue msg = case msg of
 
 
 view : Model -> Html
-view model =
-    div []
-        [ stringInput (model.chat)
-        ]
+view model = div []
+  [ showInput (model.chat)
+  , showLog (model.log)
+  ]
 
   
 onEnter : Signal.Message -> Attribute
@@ -125,16 +133,22 @@ is13 code =
   if code == 13 then Ok () else Err "not the right key code"
 
 
+  
+showLog : List ChatLog -> Html
+showLog chats = div [] (List.map showChat chats)
 
-stringInput : String -> Html
-stringInput chat =
-    input
-        [ placeholder "Send a message"
-        , value chat
-        , on "input" targetValue (sendUpdate << UpdateChat)
-        , onEnter (sendUpdate (PostChat chat))
-        ]
-        []
+showChat : ChatLog -> Html
+showChat chat = p [] [ text chat.sender, text chat.message ]
+                
+
+
+showInput : String -> Html
+showInput chat = input
+  [ placeholder "Send a message"
+  , value chat
+  , on "input" targetValue (sendUpdate << UpdateChat)
+  , onEnter (sendUpdate (PostChat chat))
+  ] []
   
     
 main = Signal.map view model  
