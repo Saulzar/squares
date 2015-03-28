@@ -8,6 +8,8 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
+import qualified Data.ByteString.Lazy.Char8 as L
+
 import qualified Data.Map as M
 import Data.Foldable
 
@@ -81,8 +83,8 @@ modifyState' f = withState $ \stateVar -> do
     return a
     
 
-modifyState :: (ServerState -> ServerState) -> Server ()
-modifyState f = modifyState' (f &&& const ())
+modifyState :: (ServerState -> ServerState) -> Server ServerState
+modifyState f = modifyState' (\state -> let state' = f state in (state', state'))
 
 
 
@@ -105,11 +107,21 @@ broadcast a = do
 
     
 sendJson :: (MonadIO m, ToJSON a) => WS.Connection -> a -> m ()
-sendJson conn err = liftIO $ WS.sendTextData conn (encode err)
+sendJson conn msg = liftIO $ do
+  putStrLn ("sending: " ++ L.unpack str)
+  WS.sendTextData conn str 
+    where
+      str = encode msg
 
 
 recieveJson :: (MonadIO m, FromJSON a) => WS.Connection -> m (Either String a)
-recieveJson conn = liftIO $ fmap eitherDecode' $ WS.receiveData conn
+recieveJson conn = liftIO $ do
+  str <- WS.receiveData conn
+  putStrLn ("recieved: " ++ L.unpack str)
+  return $ eitherDecode' str 
+    
+
+    
     
     
 newId :: Server Int
@@ -117,10 +129,20 @@ newId = modifyState' inc where
   inc state = (over serverCount (+1) state, state ^. serverCount) 
 
 
+sendClient :: (MonadIO m, ToJSON a) => Client -> a -> m ()
+sendClient client a = sendJson (client ^. clientConn) a
+  
+welcome ::  Client -> ServerState -> ServerMessage
+welcome client state = Welcome (client ^. clientId) users where
+  
+  toUser (_, client) = User (client ^. clientId) (client ^. clientName) 
+  users = map toUser $ M.toList (state ^. serverUsers) 
   
 loginUser :: Client -> Server ()
 loginUser  client = flip finally disconnect $ do      
-  modifyState $ addClient client
+  state <- modifyState $ addClient client
+  
+  sendClient client (welcome client state) 
   broadcast $ Connected i (client ^. clientName) 
   runClient client
 
@@ -141,18 +163,26 @@ runClient client = run' where
   onCmd msg = case msg of 
     ClientChat msg -> broadcast (Chat i msg) >> run'              
     
-  onErr err = sendJson conn (ParseError (T.pack err))
+  onErr err = sendJson conn (ServerError (T.pack err))
 
   i = client ^. clientId
   conn = client ^. clientConn
   
       
-        
+      
 
 application :: TVar ServerState -> WS.ServerApp
 application stateVar pending = do
+    
     conn <- WS.acceptRequest pending
     WS.forkPingThread conn 30
+    
+    -- get hello
+    msg <- recieveJson conn    
+    case msg of
+      Right (Hello) -> return ()
+      Left err      -> sendJson conn (ServerError (T.pack err))
+    
     
     flip runReaderT stateVar $ do
       msg <- recieveJson conn
@@ -160,7 +190,7 @@ application stateVar pending = do
       
       case msg of
         Right (Login name) -> loginUser  (Client i name conn)
-        Left err           -> sendJson conn (T.pack err)
+        Left err           -> sendJson conn (ServerError (T.pack err))
 
 
 main :: IO ()

@@ -22,3 +22,9 @@ concatMaybes a b = case a of
 catMaybes : List (Maybe a) -> List a
 catMaybes = List.filterMap identity
     
+    
+isJust : Maybe a -> Bool
+isJust a = case a of 
+  Just a  -> True
+  Nothing -> False
+     

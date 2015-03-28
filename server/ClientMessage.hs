@@ -1,25 +1,26 @@
 
 module ClientMessage (
-    Login (Login), 
-    ClientMessage (ClientChat)
+    ClientMessage (ClientChat, Login, Hello)
   ) where
 
 
 import Data.Aeson
 import GHC.Generics
 
+import Generics.Generic.Aeson
+
 import Data.Text
 
-data Login = 
-  Login { name :: !Text } deriving (Show, Generic)
 
 
-instance FromJSON Login
-instance ToJSON Login
 
-
-data ClientMessage =
-  ClientChat { message :: !Text} deriving (Show, Generic)
+data ClientMessage 
+  = Hello 
+  | Login {name :: !Text} 
+  | ClientChat {message :: !Text} deriving (Show, Generic)
   
-instance FromJSON ClientMessage
-instance ToJSON ClientMessage
+instance FromJSON ClientMessage where
+  parseJSON = gparseJson
+  
+instance ToJSON ClientMessage where
+  toJSON = gtoJson

@@ -25,6 +25,7 @@ executable squareserver
                        containers,
                        transformers,
                        aeson,
+                       generic-aeson,
                        bytestring,
                        stm,
                        lens,
