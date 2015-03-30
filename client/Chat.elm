@@ -220,6 +220,9 @@ decodeAction str = ServerMessage <| case (decodeMessage str) of
 
 clientMessages : Signal String
 clientMessages = Signal.map clientMessage << Signal.keepIf Util.isJust Nothing << Signal.map snd <| outputs
+-- clientMessages = Signal.const "" 
+
+
 
 serverMessages : Signal Action
 serverMessages = Signal.map decodeAction (WebSocket.connect "ws://localhost:9160" clientMessages)

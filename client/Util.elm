@@ -1,7 +1,5 @@
 module Util where
 
-import Maybe
-import List
 
 bool : Bool -> a -> Maybe a
 bool b x = if b then Just x else Nothing
