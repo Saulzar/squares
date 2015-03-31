@@ -7,6 +7,8 @@ function runMain() {
 
   websocket.onopen = function(evt) {
     main.ports.outgoing.subscribe(sendMessage);
+    main.ports.connected.send(true);
+
     
     function sendMessage(message) {
       websocket.send(message);

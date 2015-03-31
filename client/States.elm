@@ -6,6 +6,9 @@ import Dict exposing (Dict)
 import Maybe
 import Maybe exposing (andThen)
 
+import Port exposing (Message)
+import Debug exposing (log)
+
 
 type alias UserName = String
 type alias UserId = Int
@@ -25,7 +28,7 @@ type alias LoginState =
   }
   
   
-type Model = Login LoginState  | Playing PlayingState
+type Model = NotConnected | Login LoginState  | Playing PlayingState
 
 
 type alias Users = Dict UserId UserName
@@ -35,25 +38,32 @@ type ClientMessage = ClientChat String | ClientLogin String | ClientHello
 
 
 type ServerMessage 
-    = Connected Int String
-    | Disconnected Int
+    = UserConnected Int String
+    | UserDisconnected Int
     | Chat Int String
     | Error String
     | Welcome Int Users
-
+    | Connected
+    
 
 type Action 
-  = ServerMessage ServerMessage 
+  = ServerMessage ServerMessage
   | UpdateChat String
   | SubmitChat 
   | UpdateLogin String
   | SubmitLogin 
 
+
+type alias SendAction = Action -> Port.Message
+
+
   
 update : Action -> (Model, Maybe ClientMessage) -> (Model, Maybe ClientMessage)
 update action (model, _) = Debug.log (toString action) (case model of
   Playing p -> updatePlaying action p
-  Login l   -> updateLogin action l )
+  Login l   -> updateLogin action l
+  NotConnected -> waitConnection action)
+
 
   
 no : a -> (a, Maybe b)
@@ -62,10 +72,19 @@ no a = (a, Nothing)
 out : a -> b -> (a, Maybe b)
 out a b = (a, Just b)
 
+waitConnection : Action -> (Model, Maybe ClientMessage)
+waitConnection action  = case action of
+  ServerMessage message -> case message of 
+    Connected -> out login ClientHello
+    _         -> no NotConnected
+  _         -> no NotConnected
+
+
+
 updateLogin : Action -> LoginState -> (Model, Maybe ClientMessage)
 updateLogin action l = case action of
   ServerMessage message -> case message of 
-    Welcome id users -> no (login id)
+    Welcome id users -> no (playing id)
     _          -> no (Login l)
     
   UpdateLogin login   -> no (Login  {l | login   <- login})
@@ -87,23 +106,27 @@ updatePlaying action p =  case action of
 
 
 serverMessage : ServerMessage -> PlayingState  -> Model
-serverMessage message p =  case message of  
-    Connected id name    -> Playing p
-    Disconnected id        -> Playing p
+serverMessage message p =  case message of
+    UserConnected id name  -> Playing p
+    UserDisconnected id    -> Playing p
     Chat id message      -> Playing p
     Error reason         -> Playing p
     _ -> Playing p
        
-       
+
 initial : Model
-initial = Login 
+initial = NotConnected
+     
+     
+login : Model
+login = Login 
   { error = Nothing
   , waiting = False
   , login = ""
   }
   
-login : Int -> Model
-login id = Playing
+playing : Int -> Model
+playing id = Playing
   { id = id
   , users = Dict.empty
   , log = []

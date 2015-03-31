@@ -131,12 +131,29 @@ newId = modifyState' inc where
 
 sendClient :: (MonadIO m, ToJSON a) => Client -> a -> m ()
 sendClient client a = sendJson (client ^. clientConn) a
+
+serverError :: (MonadIO m) => WS.Connection -> String -> m ()
+serverError conn err = sendJson conn (ServerError (T.pack err))
   
 welcome ::  Client -> ServerState -> ServerMessage
 welcome client state = Welcome (client ^. clientId) users where
   
   toUser (_, client) = User (client ^. clientId) (client ^. clientName) 
   users = map toUser $ M.toList (state ^. serverUsers) 
+  
+
+awaitLogin :: WS.Connection -> Server ()
+awaitLogin conn = do
+    msg <- recieveJson conn
+
+    case msg of
+      Right (Login name) -> do
+        i <- newId
+        loginUser  (Client i name conn)
+        
+      Right _            -> serverError conn "expected login"
+      Left err           -> serverError conn err
+  
   
 loginUser :: Client -> Server ()
 loginUser  client = flip finally disconnect $ do      
@@ -168,29 +185,27 @@ runClient client = run' where
   i = client ^. clientId
   conn = client ^. clientConn
   
-      
+  
+  
       
 
 application :: TVar ServerState -> WS.ServerApp
 application stateVar pending = do
     
-    conn <- WS.acceptRequest pending
-    WS.forkPingThread conn 30
+  conn <- WS.acceptRequest pending
+  WS.forkPingThread conn 30
+  
+
+  
+  -- get hello
+  msg <- recieveJson conn    
+  case msg of
+    Right Hello   -> flip runReaderT stateVar $ awaitLogin conn
+    Right _       -> serverError conn "expected hello"
+    Left err      -> serverError conn err
     
-    -- get hello
-    msg <- recieveJson conn    
-    case msg of
-      Right (Hello) -> return ()
-      Left err      -> sendJson conn (ServerError (T.pack err))
     
     
-    flip runReaderT stateVar $ do
-      msg <- recieveJson conn
-      i <- newId
-      
-      case msg of
-        Right (Login name) -> loginUser  (Client i name conn)
-        Left err           -> sendJson conn (ServerError (T.pack err))
 
 
 main :: IO ()

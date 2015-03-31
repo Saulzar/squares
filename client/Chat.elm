@@ -9,10 +9,13 @@ import Debug
 import String
  
 import Task exposing (Task, ThreadID)
-import Port exposing (Port, InboundPort, OutboundPort)
+import Port exposing (Port, InboundPort, OutboundPort, Message)
 
 
 import States exposing (..)
+import Encode exposing (..)
+import View exposing (..)
+
 import Util  
 
 
@@ -25,38 +28,37 @@ inputs = Stream.mergeMany
                      
 -- manage the model of our application over time
 outputs : Signal (Model, Maybe ClientMessage)
-outputs = Stream.fold update (initial, Just ClientHello) inputs
+outputs = Stream.fold update (initial, Nothing) inputs
     
 
 port updatePort : Port Action
 
-sendUpdate : Action -> Message
-sendUpdate action = Port.send updatePort.address action
+sendUpdate : Action -> Port.Message
+sendUpdate action = Port.message updatePort.address action
 
 
 
 clientMessages : Stream String
-clientMessages = Stream.map encodeMessage << Stream.filterMap snd <| outputs
+clientMessages = Stream.map encodeMessage << Stream.filterMap snd <| Signal.toStream outputs
 
 -- Websocket communication (via Javascript ports)
 port incoming : InboundPort String
+port connected : InboundPort Bool
 port errors : InboundPort String
 
 
 type alias Message = Result String String
 
 serverMessages : Stream Action
-serverMessages = Stream.merge 
-  (Stream.map decodeAction incoming.stream) 
-  (Stream.map Error errors.stream)
-
+serverMessages = Stream.mergeMany
+  [ Stream.map decodeAction incoming.stream
+  , Stream.map (ServerMessage << Error) errors.stream
+  , Stream.map (always (ServerMessage Connected)) connected.stream
+  ]
 
 port outgoing : OutboundPort String
 perform Task.subscribe clientMessages (Port.send outgoing.address)
 
-
-
-  
     
-main = Signal.map view (Signal.map fst outputs)  
+main = Signal.map (view sendUpdate) (Signal.map fst outputs)  
 

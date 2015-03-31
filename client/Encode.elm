@@ -1,5 +1,8 @@
 module Encode where
 
+import Dict
+import String
+
 import States exposing (..)
 
 import JavaScript.Encode as Enc
@@ -26,15 +29,15 @@ decUsers = Dec.map Dict.fromList (Dec.list user)
 
 messageDecoder : Dec.Decoder ServerMessage
 messageDecoder = Dec.oneOf 
-  [ decObj "connected" (object2 Connected 
+  [ decObj "connected" (object2 UserConnected 
         ("id" := int) ("name" := string))
-  , decObj "disconnected" (object1 Disconnected 
+  , decObj "disconnected" (object1 UserDisconnected 
         ("id" := int))
   , decObj "chat" (object2 Chat 
         ("sender" := int) ("message" := string))
   , decObj "error" (object1 Error 
         ("reason" := string))
-  , decObj "connect" (object2 Welcome 
+  , decObj "welcome" (object2 Welcome 
         ("id" := int) 
         ("users" := decUsers))
   ]
