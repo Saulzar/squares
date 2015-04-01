@@ -12,11 +12,16 @@ import Debug exposing (log)
 
 type alias UserName = String
 type alias UserId = Int
+
+
+
+type alias Users = Dict UserId UserName
+type alias ChatLog = {sender : UserName, message : String}
   
 type alias PlayingState = 
   { id : UserId
   , users :  Users
-  , log : List ChatLog
+  , chatLog : List ChatLog
   , chat : String
   }
   
@@ -29,11 +34,6 @@ type alias LoginState =
   
   
 type Model = NotConnected | Login LoginState  | Playing PlayingState
-
-
-type alias Users = Dict UserId UserName
-type alias ChatLog = {sender : UserName, message : String, status : Maybe Bool}
-  
 type ClientMessage = ClientChat String | ClientLogin String | ClientHello
 
 
@@ -74,19 +74,15 @@ out a b = (a, Just b)
 
 waitConnection : Action -> (Model, Maybe ClientMessage)
 waitConnection action  = case action of
-  ServerMessage message -> case message of 
-    Connected -> out login ClientHello
-    _         -> no NotConnected
-  _         -> no NotConnected
+  ServerMessage Connected -> out login ClientHello
+  _                       -> no NotConnected
 
 
 
 updateLogin : Action -> LoginState -> (Model, Maybe ClientMessage)
 updateLogin action l = case action of
-  ServerMessage message -> case message of 
-    Welcome id users -> no (playing id)
-    _          -> no (Login l)
-    
+  ServerMessage (Welcome id users) ->  no (playing id)
+  
   UpdateLogin login   -> no (Login  {l | login   <- login})
   SubmitLogin         -> out (Login {l | waiting <- True}) (ClientLogin l.login) 
   
@@ -97,21 +93,32 @@ updateLogin action l = case action of
 noP : PlayingState -> (Model, Maybe ClientMessage)
 noP p = (Playing p, Nothing)
 
+outP : a -> b -> (Model, Maybe ClientMessage)
+outP a b = (Playing a, Just b)
+
 updatePlaying : Action -> PlayingState -> (Model, Maybe ClientMessage)
 updatePlaying action p =  case action of
-  ServerMessage message -> (serverMessage message p, Nothing)
+  ServerMessage msg -> (serverMessage msg p, Nothing)
   SubmitChat           -> out (Playing {p | chat <- ""}) (ClientChat p.chat)
   UpdateChat msg       -> noP {p | chat <- msg}
   _                    -> noP p
 
 
-serverMessage : ServerMessage -> PlayingState  -> Model
-serverMessage message p =  case message of
-    UserConnected id name  -> Playing p
-    UserDisconnected id    -> Playing p
-    Chat id message      -> Playing p
-    Error reason         -> Playing p
+serverMessage : ServerMessage -> PlayingState  -> (Model, Maybe ClientMessage)
+serverMessage msg p =  case msg of
+    UserConnected id name  -> noP p
+    UserDisconnected id    -> noP p
+    Chat id msg      -> noP (addLog id msg p)
+    Error reason         -> noP p
     _ -> Playing p
+       
+       
+
+addLog :: Int -> String -> PlayingState -> PlayingState
+addLog id msg p = case (Dict.get p.users id) of
+  Just user -> p {p | chatLog <- {sender = user, msg = msg} :: p.chatLog}
+  Nothing   -> p
+
        
 
 initial : Model
