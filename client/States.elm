@@ -9,20 +9,21 @@ import Maybe exposing (andThen)
 import Port exposing (Message)
 import Debug exposing (log)
 
+import Game.Interface as Interface
 
 type alias UserName = String
 type alias UserId = Int
 
-
+type alias Event = String
 
 type alias Users = Dict UserId UserName
-type alias ChatLog = {sender : UserName, message : String}
-  
+
 type alias PlayingState = 
   { id : UserId
   , users :  Users
-  , chatLog : List ChatLog
-  , chat : String
+  , eventLog : List Event
+  , chatEntry : String
+  , game : Interface.Model
   }
   
 
@@ -51,91 +52,132 @@ type Action
   | UpdateChat String
   | SubmitChat 
   | UpdateLogin String
-  | SubmitLogin 
+  | SubmitLogin
+  | GameAction Interface.Action
 
 
-type alias SendAction = Action -> Port.Message
+type alias ClientState = (Model, Maybe ClientMessage)
+type alias SendAction = Action -> Port.Message  
+ 
+ 
+ 
+state : (a -> Model) -> a -> ClientState
+state f a = (f a, Nothing)
+ 
+playing : PlayingState -> ClientState
+playing = state Playing
+
+login : LoginState -> ClientState
+login = state Login
+
+
+reply : ClientState -> ClientMessage -> ClientState
+reply (m, _) msg = (m, Just msg)
+
+-- 
+-- notConnected : State ()
+-- notConnected = 
+
+
 
 
   
-update : Action -> (Model, Maybe ClientMessage) -> (Model, Maybe ClientMessage)
+update : Action -> ClientState -> ClientState
 update action (model, _) = Debug.log (toString action) (case model of
   Playing p -> updatePlaying action p
   Login l   -> updateLogin action l
   NotConnected -> waitConnection action)
-
-
   
-no : a -> (a, Maybe b)
-no a = (a, Nothing)
 
-out : a -> b -> (a, Maybe b)
-out a b = (a, Just b)
 
-waitConnection : Action -> (Model, Maybe ClientMessage)
+waitConnection : Action -> ClientState
 waitConnection action  = case action of
-  ServerMessage Connected -> out login ClientHello
-  _                       -> no NotConnected
+  ServerMessage Connected -> toLogin `reply` ClientHello
+  _ -> Debug.crash "waitConnection: invalid event"
 
 
 
-updateLogin : Action -> LoginState -> (Model, Maybe ClientMessage)
+updateLogin : Action -> LoginState -> ClientState
 updateLogin action l = case action of
-  ServerMessage (Welcome id users) ->  no (playing id)
+  ServerMessage (Welcome id users) ->  toPlaying id users
   
-  UpdateLogin login   -> no (Login  {l | login   <- login})
-  SubmitLogin         -> out (Login {l | waiting <- True}) (ClientLogin l.login) 
+  UpdateLogin name    -> login  {l | login   <- name}
+  SubmitLogin         -> login {l | waiting <- True} 
+                          `reply` ClientLogin l.login
   
-  _  -> no (Login l)
+  _ -> Debug.crash ("updateLogin: invalid event")
 
                            
 
-noP : PlayingState -> (Model, Maybe ClientMessage)
-noP p = (Playing p, Nothing)
 
-outP : a -> b -> (Model, Maybe ClientMessage)
-outP a b = (Playing a, Just b)
-
-updatePlaying : Action -> PlayingState -> (Model, Maybe ClientMessage)
+updatePlaying : Action -> PlayingState -> ClientState
 updatePlaying action p =  case action of
-  ServerMessage msg -> (serverMessage msg p, Nothing)
-  SubmitChat           -> out (Playing {p | chat <- ""}) (ClientChat p.chat)
-  UpdateChat msg       -> noP {p | chat <- msg}
-  _                    -> noP p
+  ServerMessage msg -> serverMessage msg p
+  SubmitChat           -> playing {p | chatEntry <- ""} 
+                          `reply`  ClientChat p.chatEntry
+                          
+  UpdateChat msg       -> playing {p | chatEntry <- msg}
+  GameAction action    -> playing {p | game <- Interface.update action p.game}
+  
+  _ -> Debug.crash ("updatePlaying: invalid event")
 
-
-serverMessage : ServerMessage -> PlayingState  -> (Model, Maybe ClientMessage)
+serverMessage : ServerMessage -> PlayingState  -> ClientState
 serverMessage msg p =  case msg of
-    UserConnected id name  -> noP p
-    UserDisconnected id    -> noP p
-    Chat id msg      -> noP (addLog id msg p)
-    Error reason         -> noP p
-    _ -> Playing p
-       
+    UserConnected id name  -> playing (userConnected id name p)
+    UserDisconnected id    -> playing (userDisconnected id p)
+    Chat id msg      -> playing (addLog id msg p)
+    Error reason         -> playing p
+    _ -> Debug.crash "serverMessage: not implemented"
        
 
-addLog :: Int -> String -> PlayingState -> PlayingState
-addLog id msg p = case (Dict.get p.users id) of
-  Just user -> p {p | chatLog <- {sender = user, msg = msg} :: p.chatLog}
-  Nothing   -> p
+       
+userConnected : UserId -> UserName -> PlayingState -> PlayingState
+userConnected id name p = {p | 
+    eventLog <- (name ++ " connected.") :: p.eventLog,
+    users <- Dict.insert id name p.users
+  }
 
+
+  
+withUser : UserId -> PlayingState -> (UserName -> a) -> a
+withUser id p f = case (Dict.get id p.users) of
+  Just user -> f user
+  Nothing   -> Debug.crash ("withUser - user does not exist: " ++ toString id)  
+  
+  
+userDisconnected : UserId -> PlayingState -> PlayingState
+userDisconnected id p = withUser id p <|
+  \user -> {p |
+    eventLog <- (user ++ " disconnected.") :: p.eventLog,
+    users <- Dict.remove id p.users
+  }  
+       
+       
+addLog : UserId -> String -> PlayingState -> PlayingState
+addLog id msg p = withUser id p <|
+  \user -> {p | eventLog <- userMessage user msg :: p.eventLog}
+  
+
+userMessage : UserName -> String -> Event
+userMessage name msg = name ++ ": " ++ msg
        
 
 initial : Model
 initial = NotConnected
      
      
-login : Model
-login = Login 
+toLogin : ClientState
+toLogin = login 
   { error = Nothing
   , waiting = False
   , login = ""
   }
   
-playing : Int -> Model
-playing id = Playing
+toPlaying : Int ->  Users -> ClientState
+toPlaying id users = playing
   { id = id
-  , users = Dict.empty
-  , log = []
-  , chat = ""
+  , users = users
+  , eventLog = []
+  , chatEntry = ""
+  , game = Interface.initial
   }
