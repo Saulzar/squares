@@ -57,7 +57,7 @@ view sendUpdate model = let
         
     playingView : PlayingState -> Html
     playingView p = div []
-      [ Game.view (sendUpdate << GameAction) (p.game)
+      [ Game.view (sendUpdate << GameInput) (p.game)
       , showLog (p.eventLog)
       , showInput (p.chatEntry)
       ]

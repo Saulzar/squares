@@ -21,6 +21,11 @@ isJust a = case a of
   Nothing -> False
      
      
+maybe : b -> (a -> b) -> Maybe a -> b    
+maybe def f ma = case ma of
+  Just a  -> f a
+  Nothing -> def   
+     
 mapSnd : (a -> b) -> (c, a) -> (c, b) 
 mapSnd f (c, a) = (c, f a)     
 

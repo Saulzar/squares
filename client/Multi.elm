@@ -1,6 +1,6 @@
 
 
-module Main (main) where 
+module Multi (main) where 
 
 import Dict exposing (Dict)
 

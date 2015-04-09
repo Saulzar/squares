@@ -1,7 +1,7 @@
 
 
 function runMain() {
-  var main = Elm.fullscreen(Elm.Main);
+  var main = Elm.fullscreen(Elm.Multi);
 
   websocket = new WebSocket("ws://localhost:9160");
 

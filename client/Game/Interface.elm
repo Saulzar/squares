@@ -20,48 +20,42 @@ import String
 import Port
 
   
-type alias KeyMap = Dict KeyCode Event
+type alias KeyMap = Dict KeyCode Binding
 type alias Model = { model : Game.Model, selected : Maybe SquareId,  keyMap : KeyMap }
 
 
 type Input = Select SquareId | KeyDown KeyCode | Animate Int
-type Event = GoUp | GoLeft | GoRight | GoDown
+type Binding = GoUp | GoLeft | GoRight | GoDown
 
 type alias SendInput = Input -> Port.Message
   
   
-update : Input -> Model -> Model
-update action m = 
-  case action of  
-    Animate dt -> animateModel dt m
-    Select sq -> select sq m
-    KeyDown key -> 
-         withDefault m
-          (Maybe.map (modelEvent m)
-            (Dict.get key (m.keyMap) `andThen` 
-            updateEvent m))
-            
-
-
+update : Input -> Model -> (Model, Maybe Game.Event)
+update input m = 
+  case input of  
+    Animate dt -> (animateModel dt m, Nothing)
+    Select sq -> (select sq m, Nothing)
+    KeyDown key -> (m, Dict.get key (m.keyMap) `andThen` gameInput m)
             
        
-        
-mapModel : (Game.Model -> Game.Model) -> Model -> Model
-mapModel f m = {m | model <- f m.model}
+          
+mapGame : (Game.Model -> Game.Model) -> Model -> Model
+mapGame f m = {m | model <- f m.model}
       
-modelEvent : Model -> Game.Event -> Model
-modelEvent m event = mapModel (Game.event event) m
+gameEvent : Game.Event -> Model ->  Model
+gameEvent event = mapGame (Game.runEvent event)
 
 animateModel : Int -> Model -> Model
-animateModel dt = mapModel (Game.animate dt)
+animateModel dt = mapGame (Game.animate dt)
 
-updateEvent : Model -> Action -> Maybe Game.Event
-updateEvent m event = case event of
-  GoUp    -> Maybe.map (Game.Rotate UpDir)     m.selected
-  GoLeft  -> Maybe.map (Game.Rotate LeftDir)   m.selected
-  GoRight -> Maybe.map (Game.Rotate RightDir)  m.selected 
-  GoDown  -> Maybe.map (Game.Rotate DownDir)   m.selected
-    
+gameInput : Model -> Binding -> Maybe Game.Event
+gameInput m binding = 
+  let tryRotate dir = m.selected `andThen` \id -> Game.rotateDir m.model id dir
+  in case binding of
+    GoUp    -> tryRotate UpDir
+    GoLeft  -> tryRotate LeftDir 
+    GoRight -> tryRotate RightDir
+    GoDown  -> tryRotate DownDir
 
 select : SquareId -> Model -> Model
 select k m = let selected = if (m.selected == Just k) then Nothing else Just k

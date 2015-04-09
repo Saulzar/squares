@@ -53,7 +53,7 @@ type Action
   | SubmitChat 
   | UpdateLogin String
   | SubmitLogin
-  | GameAction Interface.Action
+  | GameInput Interface.Input
 
 
 type alias ClientState = (Model, Maybe ClientMessage)
@@ -117,7 +117,7 @@ updatePlaying action p =  case action of
                           `reply`  ClientChat p.chatEntry
                           
   UpdateChat msg       -> playing {p | chatEntry <- msg}
-  GameAction action    -> playing {p | game <- Interface.update action p.game}
+  GameInput input       -> playing {p | game <- fst (Interface.update input p.game)} 
   
   _ -> Debug.crash ("updatePlaying: invalid event")
 
