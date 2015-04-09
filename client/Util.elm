@@ -20,3 +20,10 @@ isJust a = case a of
   Just a  -> True
   Nothing -> False
      
+     
+mapSnd : (a -> b) -> (c, a) -> (c, b) 
+mapSnd f (c, a) = (c, f a)     
+
+
+mapFst : (a -> b) -> (c, a) -> (c, b) 
+mapFst f (c, a) = (c, f a)
