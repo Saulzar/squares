@@ -10,7 +10,9 @@ module Dom
   , div_
   
   , getBody
-  , requestAnimationFrame
+  , animationEvent
+  
+  
   , askWindow
   
   ) where
@@ -44,6 +46,9 @@ import GHCJS.Foreign
 type RequestAnimationFrameCallback =  IO ()
 
 
+
+
+
 foreign import javascript unsafe
         "$1[\"requestAnimationFrame\"]($2)" js_requestAnimationFrame ::
         JSRef DOMWindow ->  JSFun RequestAnimationFrameCallback -> IO Int
@@ -54,7 +59,7 @@ requestAnimationFrame ::
                         DOMWindow -> RequestAnimationFrameCallback -> m Int
 requestAnimationFrame self callback
   = liftIO $ do
-      cb <- asyncCallback AlwaysRetain callback
+      cb <- syncCallback AlwaysRetain False callback
       (js_requestAnimationFrame (unDOMWindow self) cb )
  
 foreign import javascript unsafe "$1[\"cancelAnimationFrame\"]($2)"
@@ -65,6 +70,21 @@ cancelAnimationFrame :: (MonadIO m) => DOMWindow -> Int -> m ()
 cancelAnimationFrame self id
   = liftIO (js_cancelAnimationFrame (unDOMWindow self) id)
  
+ 
+animationEvent ::  MonadWidget t m => DOMWindow -> m (Event t ())
+animationEvent window = do
+  postGui <- askPostGui
+  runWithActions <- askRunWithActions
+  newEventWithTrigger $ \trigger -> do
+    
+    let animate = requestAnimationFrame window $ liftIO $ do
+          postGui $ runWithActions [trigger :=> ()]
+          void $ animate
+          
+    animate
+          
+--     unsubscribe <- liftIO animate 
+    return $ liftIO (return ())
  
 
 

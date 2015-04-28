@@ -8,6 +8,7 @@ import Reflex.Dom
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
+import Data.List (intersperse)
 
 import Control.Lens
 
@@ -40,14 +41,14 @@ defaultKeys =
 initial :: Model
 initial = Model 
           { _model_game = initialGame
-          , _model_selected = Just (SquareId 1) 
+          , _model_selected = Nothing
           , _model_keymap = defaultKeys
           }
   
   
 $( makeLenses ''Model)  
 
-data Action = Select SquareId | Deselect | GameAction GameEvent  deriving (Show)
+data Action = Select SquareId | Deselect | GameAction GameEvent | Animate Int  deriving (Show)
   
 listView :: (MonadWidget t m, Ord k) => Dynamic t (Map k v) -> (k -> Dynamic t v -> m (Event t b)) -> m (Event t b)
 listView xs view = do 
@@ -75,16 +76,17 @@ showModel model = do
             , ("width", "100%"), ("preserveAspectRatio", "xMinYMin")] :: AttributeMap
 
 
+type SquareApp = (Coord, Bool, Maybe (Coord, Int))
 
             
       
-squareDisplay :: Model -> Map SquareId (Coord, Bool)
+squareDisplay :: Model -> Map SquareId SquareApp
 squareDisplay model = Map.mapWithKey f squares where
-  squares = model^.model_game.game_squares 
-  f i sq  = (sq^.square_position, Just i == model^.model_selected) 
+  squares = model^.model_game . game_squares 
+  f i sq  = (sq^.square_position, Just i == model^.model_selected, progress i (model^.model_game)) 
       
 
-showSquare :: MonadWidget t m => SquareId -> Dynamic t (Coord, Bool) -> m (Event t Action)
+showSquare :: MonadWidget t m => SquareId -> Dynamic t SquareApp -> m (Event t Action)
 showSquare i sq = do
   attrs <- mapDyn squareAttrs sq
   click <- rect_ attrs $ clicked_ 
@@ -93,11 +95,20 @@ showSquare i sq = do
   return select
   
   
-squareAttrs :: (Coord, Bool) -> AttributeMap
-squareAttrs (V2 x y, selected) = [("x", show x), ("y", show y)
-          , ("width", "1"), ("height", "1"), ("fill", fill)] 
+squareAttrs :: SquareApp -> AttributeMap
+squareAttrs (V2 x y, selected, r) = [("x", show x), ("y", show y)
+          , ("width", "1"), ("height", "1"), ("fill", fill)] <> (maybe [] rotateAround r) 
         where
           fill = if selected then "cadetblue" else "royalblue"
+          
+commas :: Show a => [a] -> String
+commas = concat . intersperse ", " . map show
+          
+          
+rotateAround :: (Coord, Int) -> AttributeMap
+rotateAround (V2 cx cy, angle) = [("transform",  "rotate (" ++ commas [angle, cx, cy] ++ ")")]
+       
+
           
 
 
@@ -106,6 +117,7 @@ update :: Action -> Model -> Model
 update (Select i) = model_selected .~ (Just i)
 update (Deselect) = model_selected .~ Nothing
 update (GameAction e) = model_game %~ runEvent e 
+update (Animate dt) = model_game %~ animate dt
 
 
       
@@ -127,16 +139,17 @@ main :: IO ()
 main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ do
   
   window <- askWindow 
-        
+  animate <- animationEvent window      
  
-  let request =  requestAnimationFrame window $ do 
-        putStrLn "Animation!" >> request >> return () 
+--   let request =  requestAnimationFrame window $ do 
+--         putStrLn "Animation!" >> request >> return () 
   
-  liftIO request
  
   rec 
     model <- foldDyn update initial actions
-    actions <- fmap (traceEvent "action") $ showModel model
+    
+    inputs <-  showModel model
+    let actions = traceEvent "action" $ leftmost [inputs, fmap (const $ Animate 4) animate]     
         
   return ()
   
