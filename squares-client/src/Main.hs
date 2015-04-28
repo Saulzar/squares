@@ -1,5 +1,5 @@
 {-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell #-}
-
+module Main where
 
 import Reflex
 import Reflex.Dom
@@ -7,15 +7,16 @@ import Reflex.Dom
 
 import qualified Data.Map as Map
 import Data.Map (Map)
-
+import Data.Maybe
 
 import Control.Lens
 
-import Data.Monoid
+import Data.Monoid 
 
-import Control.Monad
+import Control.Monad 
 import Control.Monad.IO.Class
 
+import Data.FileEmbed
 
 import Game
 import Dom
@@ -24,38 +25,58 @@ import Dom
 data Model = Model 
   { _model_game :: Game
   , _model_selected :: Maybe SquareId
+  , _model_keymap :: Map Int GameInput
   }
   
+  
+defaultKeys :: Map Int GameInput
+defaultKeys = 
+  [ (37, ArrowKey LeftDir)
+  , (38, ArrowKey UpDir)
+  , (39, ArrowKey RightDir)
+  , (40, ArrowKey DownDir)
+  ]  
 
 initial :: Model
 initial = Model 
           { _model_game = initialGame
-          , _model_selected = Just (SquareId 1) }
+          , _model_selected = Just (SquareId 1) 
+          , _model_keymap = defaultKeys
+          }
   
   
 $( makeLenses ''Model)  
 
-data Action = Select SquareId | Deselect deriving (Show)
+data Action = Select SquareId | Deselect | GameAction GameEvent  deriving (Show)
   
+listView :: (MonadWidget t m, Ord k) => Dynamic t (Map k v) -> (k -> Dynamic t v -> m (Event t b)) -> m (Event t b)
+listView xs view = do 
+  events <- listViewWithKey xs view
+  return $ fmapMaybe (listToMaybe . Map.elems) events
   
-showModel :: (MonadWidget t m) => Dynamic t Model -> m (Event t [Action])
+showModel :: (MonadWidget t m) => Dynamic t Model -> m (Event t Action)
 showModel model = do
   
   squares <- mapDyn squareDisplay model
   svg_ attrs $ do 
     
+    allKeys <- windowKeydown_  
+    let key =  attachWithMaybe keyInput (current model) allKeys
+  
     click <- clicked_
-    let deselect = fmap (const [Deselect]) click
+    let deselect = fmap (const Deselect) click
     
-    selects <- listViewWithKey squares showSquare
-    return $ leftmost {-mergeWith (++)-} [fmap Map.elems selects, deselect]
+    select <-  listView squares showSquare
+    return $ leftmost [deselect, select, key]
     
   where
     
     attrs = [ ("version", "1.1"),  ("viewBox", "0 0 20 10")
             , ("width", "100%"), ("preserveAspectRatio", "xMinYMin")] :: AttributeMap
 
-      
+
+
+            
       
 squareDisplay :: Model -> Map SquareId (Coord, Bool)
 squareDisplay model = Map.mapWithKey f squares where
@@ -73,7 +94,7 @@ showSquare i sq = do
   
   
 squareAttrs :: (Coord, Bool) -> AttributeMap
-squareAttrs ((x, y), selected) = [("x", show x), ("y", show y)
+squareAttrs (V2 x y, selected) = [("x", show x), ("y", show y)
           , ("width", "1"), ("height", "1"), ("fill", fill)] 
         where
           fill = if selected then "cadetblue" else "royalblue"
@@ -84,21 +105,42 @@ squareAttrs ((x, y), selected) = [("x", show x), ("y", show y)
 update :: Action -> Model -> Model  
 update (Select i) = model_selected .~ (Just i)
 update (Deselect) = model_selected .~ Nothing
+update (GameAction e) = model_game %~ runEvent e 
 
 
-updates :: [Action] -> Model -> Model
-updates as m = foldr update m as 
-  
-  
-  
+      
+    
+gameEvent :: GameInput -> Model -> Maybe Action
+gameEvent (ArrowKey dir) model = do
+  selected <- _model_selected model
+  fmap GameAction $ rotateDir (_model_game model) selected dir 
+    
+
+keyInput :: Model -> Int -> Maybe Action
+keyInput model key = do
+  input <- Map.lookup key (_model_keymap model)
+  gameEvent input model    
+    
+    
   
 main :: IO ()
-main = mainWidget $ el "div" $ do
+main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ do
+  
+  window <- askWindow 
+        
+ 
+  let request =  requestAnimationFrame window $ do 
+        putStrLn "Animation!" >> request >> return () 
+  
+  liftIO request
+ 
   rec 
-    model <- foldDyn updates initial actions
+    model <- foldDyn update initial actions
     actions <- fmap (traceEvent "action") $ showModel model
-    
+        
   return ()
+  
+  
 --     mergeMap clicks 
     
     
