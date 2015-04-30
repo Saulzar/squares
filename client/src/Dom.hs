@@ -18,7 +18,10 @@ module Dom
   ) where
 
 import Reflex
-import Reflex.Dom  
+import Reflex.Dom
+
+import Reflex.Dom.Class
+import Reflex.Host.Class
 
 import GHCJS.DOM.Types hiding (Event)
 import GHCJS.DOM.Document
@@ -35,9 +38,6 @@ import Data.Dependent.Sum (DSum ((:=>)))
 
 import Control.Monad
 import Control.Monad.IO.Class
-
-import Reflex.Dom.Class
-import Reflex.Host.Class
 
 import GHCJS.Types
 import GHCJS.Foreign

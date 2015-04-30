@@ -1,6 +1,6 @@
 {-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell, RankNTypes #-}
-module Game 
-  ( module Types
+module Squares.Game 
+  ( module Squares.Types
   , initialGame
   , runEvent
   , rotateDir
@@ -19,7 +19,7 @@ import Linear hiding (angle, basis, rotate)
 
 import Debug.Trace
 
-import Types
+import Squares.Types
 
 
 mkSquare :: Coord -> Square

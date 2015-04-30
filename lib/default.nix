@@ -1,4 +1,9 @@
-{ mkDerivation
+{ mkDerivation, containers,
+    text,
+    transformers,
+    file-embed,
+    lens,
+    linear
 }:
 
 mkDerivation {
@@ -7,7 +12,12 @@ mkDerivation {
   src = builtins.filterSource (path: type: baseNameOf path != ".git") ./.;
   isExecutable = true;
   buildDepends = [
-
+    containers
+    text
+    transformers
+    file-embed
+    lens
+    linear
   ];
   license = null;
 }

@@ -19,7 +19,7 @@ import Control.Monad.IO.Class
 
 import Data.FileEmbed
 
-import Game
+import Squares.Game
 import Dom
 
 
@@ -135,6 +135,10 @@ keyInput model key = do
     
     
   
+  
+  
+  
+  
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ do
   
@@ -145,6 +149,8 @@ main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ do
 --         putStrLn "Animation!" >> request >> return () 
   
  
+ 
+
   rec 
     model <- foldDyn update initial actions
     

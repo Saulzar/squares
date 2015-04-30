@@ -1,4 +1,5 @@
 { mkDerivation, 
+    squares,
     reflex, 
     reflex-dom, 
     file-embed, 
@@ -8,7 +9,8 @@
     transformers,
     lens,
     linear,
-    dependent-sum
+    dependent-sum,
+    hashable
 }:
 
 mkDerivation {
@@ -17,6 +19,7 @@ mkDerivation {
   src = builtins.filterSource (path: type: baseNameOf path != ".git") ./.;
   isExecutable = true;
   buildDepends = [
+    squares
     reflex
     reflex-dom
     ghcjs-websockets
@@ -27,6 +30,7 @@ mkDerivation {
     lens
     linear
     dependent-sum
+    hashable
     
   ];
   license = null;

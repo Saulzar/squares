@@ -1,5 +1,5 @@
 {-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell, RankNTypes #-}
-module Types 
+module Squares.Types 
   ( Rotation (..)
   , Square(..)
   , SquareId (..)

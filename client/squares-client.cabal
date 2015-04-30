@@ -16,6 +16,7 @@ executable squares-single
   main-is: Main.hs
   build-depends:
     base,
+    squares,
     reflex,
     ghcjs-dom,
     reflex-dom,
@@ -27,9 +28,10 @@ executable squares-single
     linear,
     dependent-sum,
     file-embed,
-    ghcjs-base
+    ghcjs-base,
+    hashable
   
-  default-extensions: RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell, RankNTypes
+  default-extensions: DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell, RankNTypes
 
 
   other-extensions: TemplateHaskell
