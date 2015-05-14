@@ -3,17 +3,17 @@
     text,
     containers,
     transformers,
-    aeson,
-    generic-aeson,
     bytestring,
     stm,
     lens,
     lifted-base,
-    linear
+    linear,
+    squares,
+    binary
 }:
 
 mkDerivation {
-  pname = "reflex-todomvc";
+  pname = "squares-server";
   version = "0.1";
   src = builtins.filterSource (path: type: baseNameOf path != ".git") ./.;
   isExecutable = true;
@@ -22,13 +22,13 @@ mkDerivation {
     text
     containers
     transformers
-    aeson
-    generic-aeson
     bytestring
     stm
     lens
     lifted-base
     linear
+    squares
+    binary
   ];
   license = null;
 }

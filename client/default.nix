@@ -10,7 +10,8 @@
     lens,
     linear,
     dependent-sum,
-    hashable
+    hashable,
+    binary
 }:
 
 mkDerivation {
@@ -31,6 +32,7 @@ mkDerivation {
     linear
     dependent-sum
     hashable
+    binary
     
   ];
   license = null;

@@ -5,6 +5,7 @@ import Reflex
 import Reflex.Dom
 
 
+
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -20,7 +21,10 @@ import Control.Monad.IO.Class
 import Data.FileEmbed
 
 import Squares.Game
+import Squares.Types
+
 import Dom
+import WebSocket
 
 
 data Model = Model 
@@ -135,29 +139,28 @@ keyInput model key = do
     
     
   
-  
-  
-  
-  
-main :: IO ()
-main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ do
-  
+showWindow :: forall t m. (MonadWidget t m) =>  m ()
+showWindow = do
   window <- askWindow 
   animate <- animationEvent window      
- 
---   let request =  requestAnimationFrame window $ do 
---         putStrLn "Animation!" >> request >> return () 
   
- 
- 
-
   rec 
+    let outgoing = never :: Event t (Maybe ClientMessage) 
+    incoming <- webSocket "ws://0.0.0.0:9160" outgoing :: m (Event t (Maybe ServerMessage))  
+  
     model <- foldDyn update initial actions
     
     inputs <-  showModel model
     let actions = traceEvent "action" $ leftmost [inputs, fmap (const $ Animate 4) animate]     
         
   return ()
+  
+  
+  
+main :: IO ()
+main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ showWindow
+  
+
   
   
 --     mergeMap clicks 

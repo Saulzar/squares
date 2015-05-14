@@ -12,7 +12,7 @@ cabal-version:       >=1.10
 
 
 library
-  exposed-modules:   Squares.Game, Squares.Types
+  exposed-modules:   Squares.Game, Squares.Types, Squares.Game.Types
   hs-source-dirs: src
   build-depends:
     base,
@@ -21,6 +21,12 @@ library
     transformers,
     file-embed,
     lens,
-    linear
+    linear,
+    binary,
+    text-binary
+
+    
+  default-extensions: GeneralizedNewtypeDeriving, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell, RankNTypes
+
   
 

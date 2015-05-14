@@ -3,7 +3,9 @@
     transformers,
     file-embed,
     lens,
-    linear
+    linear,
+    binary,
+    text-binary
 }:
 
 mkDerivation {
@@ -18,6 +20,8 @@ mkDerivation {
     file-embed
     lens
     linear
+    binary
+    text-binary
   ];
   license = null;
 }

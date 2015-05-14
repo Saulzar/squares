@@ -1,67 +1,49 @@
-{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell, RankNTypes #-}
-module Squares.Types 
-  ( Rotation (..)
-  , Square(..)
-  , SquareId (..)
-  , Game(..)
-  , GameEvent(..)
-  , GameInput(..)
+module Squares.Types
+  ( ServerMessage (..)
+  , UserId (..)
+  , User(..)
+  , ClientMessage (..)
   
-  , Coord, Vec
-  , V2 (..)
+  , user_id
+  , user_name
   
-  
-  , Dir(..)
-  , Corner(..)
-  , RotateDir(..)
-  
-  , rot_dir, rot_pivot, rot_dest, rot_angle
-  , square_rotation, square_position
-  , game_squares, game_bounds
-    
-  )
-  where
+  ) where
 
-import qualified Data.Map as Map
-import Data.Map (Map)
 
+import GHC.Generics
+import qualified Data.Map.Strict as M
+
+import Data.Text
+import Data.Text.Binary
+
+import Data.Binary
 import Control.Lens
-import Linear hiding (angle, basis)
+
+import Squares.Game.Types (Game)
 
 
-type Coord = V2 Int
-type Vec = V2 Int
+newtype UserId = UserId { unUser :: Int } deriving (Eq, Ord, Show, Generic, Binary)
+data User = User { _user_id :: !UserId, _user_name :: !Text } deriving (Show, Generic)
 
-data Dir = UpDir | LeftDir | RightDir | DownDir  deriving (Show, Eq, Ord)
-data Corner = TopLeft | TopRight | BotRight | BotLeft deriving (Show, Eq, Ord)
 
-data RotateDir = CW | CCW deriving (Show, Eq, Ord)
+$( makeLenses ''User)
 
-data GameInput = ArrowKey Dir deriving (Show, Eq)
 
-data Rotation = Rotation 
-  {  _rot_dir     :: !RotateDir
-  , _rot_pivot    :: !Corner
-  , _rot_dest     :: !Coord
-  , _rot_angle    :: !Int
-  } deriving (Show)
+data ServerMessage 
+    = Connected !UserId !Text
+    | Disconnected !UserId
+    | Chat !UserId !Text
+    | ServerError !Text 
+    | Welcome !Game [User] !UserId
+      deriving (Show, Generic)
+      
+data ClientMessage
+   = ClientChat !Text
+   | ClientSettings !Text
+      deriving (Show, Generic)
+
+      
   
-data Square = Square
-  {  _square_rotation :: Maybe (Rotation, Int)
-  ,  _square_position :: Coord
-  } deriving (Show)
-
-  
-newtype SquareId = SquareId { unSquare :: Int } deriving (Eq, Ord, Show)
-
-data Game = Game
-  { _game_squares  :: Map SquareId Square
-  , _game_bounds   :: !Coord
-  } deriving (Show)
-  
-  
-data GameEvent = RotateEvent SquareId RotateDir deriving Show
-  
-$( makeLenses ''Game)
-$( makeLenses ''Square)
-$( makeLenses ''Rotation)
+instance Binary ServerMessage 
+instance Binary ClientMessage
+instance Binary User
