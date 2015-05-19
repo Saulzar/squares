@@ -3,13 +3,14 @@ import Data.Monoid (mappend)
 import Data.Text (Text)
 import Control.Exception.Lifted (finally)
 import Control.Monad (forM_, forever)
+import Control.Concurrent
 
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import qualified Data.ByteString.Lazy as B
-import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as B
+import Data.ByteString.Lazy.Char8 (ByteString)
 
 import qualified Data.Map as M
 import Data.Foldable
@@ -189,10 +190,16 @@ application stateVar pending = do
   conn <- WS.acceptRequest pending
   WS.forkPingThread conn 30
 
-  flip runReaderT stateVar $ do 
-    i <- newId
-    let user = User i (T.pack $ "noname" ++ show i)
-    newUser  (Client user conn)
+  let loop i = do
+        WS.sendTextData conn (B.pack $ show i)
+        threadDelay 1000000  
+        loop (i + 1)
+  loop 0
+  
+--   flip runReaderT stateVar $ do 
+--     i <- newId
+--     let user = User i (T.pack $ "noname" ++ show i)
+--     newUser  (Client user conn)
   
 
 

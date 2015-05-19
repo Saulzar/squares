@@ -11,7 +11,8 @@
     linear,
     dependent-sum,
     hashable,
-    binary
+    binary,
+    time
 }:
 
 mkDerivation {
@@ -33,6 +34,7 @@ mkDerivation {
     dependent-sum
     hashable
     binary
+    time
     
   ];
   license = null;

@@ -5,11 +5,13 @@ import Reflex
 import Reflex.Dom
 
 
-
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
 import Data.List (intersperse)
+
+import Data.Time.Clock
+
 
 import Control.Lens
 
@@ -23,6 +25,8 @@ import Data.FileEmbed
 import Squares.Game
 import Squares.Types
 
+import Data.Text (Text)
+
 import Dom
 import WebSocket
 
@@ -31,6 +35,7 @@ data Model = Model
   { _model_game :: Game
   , _model_selected :: Maybe SquareId
   , _model_keymap :: Map Int GameInput
+  , _model_connected :: Bool
   }
   
   
@@ -52,7 +57,13 @@ initial = Model
   
 $( makeLenses ''Model)  
 
-data Action = Select SquareId | Deselect | GameAction GameEvent | Animate Int  deriving (Show)
+
+data Action = Select SquareId 
+            | Deselect 
+            | GameAction GameEvent 
+            | Animate Int 
+            | MadeConnection  
+              deriving (Show)
   
 listView :: (MonadWidget t m, Ord k) => Dynamic t (Map k v) -> (k -> Dynamic t v -> m (Event t b)) -> m (Event t b)
 listView xs view = do 
@@ -122,6 +133,7 @@ update (Select i) = model_selected .~ (Just i)
 update (Deselect) = model_selected .~ Nothing
 update (GameAction e) = model_game %~ runEvent e 
 update (Animate dt) = model_game %~ animate dt
+update (MadeConnection) = model_connected .~ True
 
 
       
@@ -137,8 +149,19 @@ keyInput model key = do
   input <- Map.lookup key (_model_keymap model)
   gameEvent input model    
     
+once :: (MonadWidget t m) => a -> m (Event t a) 
+once a = do
+  postBuild <- getPostBuild    
+  return (fmap (const a) postBuild) 
+
+url = "ws://0.0.0.0:9160" :: Text  
+
+
+whenDyn :: (MonadWidget t m) => (a -> Bool) -> Dynamic t a -> m (Event t a)
+whenDyn f dyn = do
+  postBuild <- getPostBuild    
+  return $ ffilter f (tagDyn dyn postBuild)
     
-  
 showWindow :: forall t m. (MonadWidget t m) =>  m ()
 showWindow = do
   window <- askWindow 
@@ -146,12 +169,25 @@ showWindow = do
   
   rec 
     let outgoing = never :: Event t (Maybe ClientMessage) 
-    incoming <- webSocket "ws://0.0.0.0:9160" outgoing :: m (Event t (Maybe ServerMessage))  
+--     incoming <- webSocket  outgoing :: m (Event t (Maybe ServerMessage))  
+--     
+--     performEvent_ $ fmap (liftIO . print) incoming
+--     connection <- once url >>=   connect 
+    
+--     incoming <- receiveMessage connection 
+
+    needConnect <- whenDyn (isNothing) connection
+    connection <- connect $ fmap (const url) needConnect
+    
   
     model <- foldDyn update initial actions
     
     inputs <-  showModel model
-    let actions = traceEvent "action" $ leftmost [inputs, fmap (const $ Animate 4) animate]     
+    let actions = traceEvent "action" $ leftmost 
+          [ inputs
+          , fmap (const $ Animate 4) animate
+          , fmap (const MadeConnection) connection 
+          ]     
         
   return ()
   

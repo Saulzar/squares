@@ -142,10 +142,6 @@ xorMaybes ma mb = case (ma, mb) of
 rotateDir :: Game -> SquareId -> Dir -> Maybe GameEvent
 rotateDir model i dir =  do
   sq <- model^?square i 
-  
-  traceShow (i, dir, sq) $ return ()
-  
-  
   guard (isNothing $ sq ^. square_rotation)
   
   fmap (RotateEvent i . _rot_dir) $ 
@@ -157,7 +153,7 @@ unique _   = Nothing
   
 
 rotateDir' :: Game -> Coord -> Dir -> Maybe Rotation
-rotateDir' model pos dir = traceShow (pos, catMaybes possible) $ unique search
+rotateDir' model pos dir = unique search
   where
     rotate rotDir corner = tryCorner model pos rotDir corner
     dirs = [CW, CCW]
@@ -167,7 +163,7 @@ rotateDir' model pos dir = traceShow (pos, catMaybes possible) $ unique search
     isDir r = (r^.rot_dest - pos) `dot` dirVec dir > 0 
 
 relative  :: Coord -> Corner -> Vec ->  Coord
-relative pos corner v  = {-traceShow (basis, corner) $ -} (basis !* v) + pos where
+relative pos corner v  =  (basis !* v) + pos where
   basis = cornerBasis corner 
  
       
@@ -189,7 +185,7 @@ cornerBasis c = case c of
   
 
 rotateEvent :: SquareId -> RotateDir -> Game -> Game
-rotateEvent i dir game = traceShow rotation $ maybe game startRotate rotation where
+rotateEvent i dir game =  maybe game startRotate rotation where
   rotation      = tryRotate game i dir 
   startRotate r = game & (square i . square_rotation) .~ Just (r, 0)
   

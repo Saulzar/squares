@@ -22,7 +22,7 @@ import Control.Lens
 import Squares.Game.Types (Game)
 
 
-newtype UserId = UserId { unUser :: Int } deriving (Eq, Ord, Show, Generic, Binary)
+newtype UserId = UserId { unUser :: Int } deriving (Eq, Ord, Show, Generic)
 data User = User { _user_id :: !UserId, _user_name :: !Text } deriving (Show, Generic)
 
 
@@ -47,3 +47,4 @@ data ClientMessage
 instance Binary ServerMessage 
 instance Binary ClientMessage
 instance Binary User
+instance Binary UserId
