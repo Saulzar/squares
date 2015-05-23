@@ -147,20 +147,46 @@ gameEvent (ArrowKey dir) model = do
 keyInput :: Model -> Int -> Maybe Action
 keyInput model key = do
   input <- Map.lookup key (_model_keymap model)
-  gameEvent input model    
+  gameEvent input model  
+  
+  
+  
+serverInput :: Model -> ServerMessage -> Maybe Action
+serverInput model msg = Nothing
+
+
+  
+remote :: (MonadWidget t m) => Event t ClientMessage -> m (Event t ServerMessage)
+remote outgoing = do
+  rec
+    
+    socket <- receiveData connection 
+    performEvent_ $ ffor (socket_decodeFail socket) $ \msg -> 
+      error $ "failed to decode message: " ++ show msg
+      
+    needConnect <- whenDyn (isNothing) connection
+    connection <- holdConnection $ fmap (const url) needConnect
+
+  return (socket_message socket)
+
+  where
+    url = "ws://0.0.0.0:9160" :: Text  
+
+  
     
 once :: (MonadWidget t m) => a -> m (Event t a) 
 once a = do
   postBuild <- getPostBuild    
   return (fmap (const a) postBuild) 
 
-url = "ws://0.0.0.0:9160" :: Text  
 
 
 whenDyn :: (MonadWidget t m) => (a -> Bool) -> Dynamic t a -> m (Event t a)
 whenDyn f dyn = do
   postBuild <- getPostBuild    
   return $ ffilter f (tagDyn dyn postBuild)
+  
+  
     
 showWindow :: forall t m. (MonadWidget t m) =>  m ()
 showWindow = do
@@ -168,25 +194,18 @@ showWindow = do
   animate <- animationEvent window      
   
   rec 
-    let outgoing = never :: Event t (Maybe ClientMessage) 
---     incoming <- webSocket  outgoing :: m (Event t (Maybe ServerMessage))  
---     
---     performEvent_ $ fmap (liftIO . print) incoming
---     connection <- once url >>=   connect 
+    let outgoing = never :: Event t ClientMessage 
     
---     incoming <- receiveMessage connection 
 
-    needConnect <- whenDyn (isNothing) connection
-    connection <- connect $ fmap (const url) needConnect
+    incoming <- remote outgoing
+    model    <- foldDyn update initial actions
     
-  
-    model <- foldDyn update initial actions
     
     inputs <-  showModel model
-    let actions = traceEvent "action" $ leftmost 
+    let actions = {-traceEvent "action" $-} leftmost 
           [ inputs
+          , attachWithMaybe serverInput (current model) incoming
           , fmap (const $ Animate 4) animate
-          , fmap (const MadeConnection) connection 
           ]     
         
   return ()
