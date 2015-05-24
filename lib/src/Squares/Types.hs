@@ -1,3 +1,5 @@
+{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes #-}
+
 module Squares.Types
   ( ServerMessage (..)
   , UserId (..)

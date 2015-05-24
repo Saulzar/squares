@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell #-}
+{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists #-}
 module Main where
 
 import Reflex
@@ -29,18 +29,13 @@ import Data.Text (Text)
 
 import Dom
 import WebSocket
+import Types
 
 
-data Model = Model 
-  { _model_game :: Game
-  , _model_selected :: Maybe SquareId
-  , _model_keymap :: Map Int GameInput
-  , _model_connected :: Bool
-  }
   
   
 defaultKeys :: Map Int GameInput
-defaultKeys = 
+defaultKeys =
   [ (37, ArrowKey LeftDir)
   , (38, ArrowKey UpDir)
   , (39, ArrowKey RightDir)
@@ -53,18 +48,9 @@ initial = Model
           , _model_selected = Nothing
           , _model_keymap = defaultKeys
           }
-  
-  
-$( makeLenses ''Model)  
 
-
-data Action = Select SquareId 
-            | Deselect 
-            | GameAction GameEvent 
-            | Animate Int 
-            | MadeConnection  
-              deriving (Show)
-  
+              
+              
 listView :: (MonadWidget t m, Ord k) => Dynamic t (Map k v) -> (k -> Dynamic t v -> m (Event t b)) -> m (Event t b)
 listView xs view = do 
   events <- listViewWithKey xs view
@@ -79,8 +65,8 @@ showModel model = do
     allKeys <- windowKeydown_  
     let key =  attachWithMaybe keyInput (current model) allKeys
   
-    click <- clicked_
-    let deselect = fmap (const Deselect) click
+    click <- clicked_ 
+    let deselect = fmap (const (Select Nothing)) click
     
     select <-  listView squares showSquare
     return $ leftmost [deselect, select, key]
@@ -105,7 +91,7 @@ showSquare :: MonadWidget t m => SquareId -> Dynamic t SquareApp -> m (Event t A
 showSquare i sq = do
   attrs <- mapDyn squareAttrs sq
   click <- rect_ attrs $ clicked_ 
-  let select = fmap (const (Select i)) click
+  let select = fmap (const (Select $ Just i)) click
 
   return select
   
@@ -129,8 +115,7 @@ rotateAround (V2 cx cy, angle) = [("transform",  "rotate (" ++ commas [angle, cx
 
 
 update :: Action -> Model -> Model  
-update (Select i) = model_selected .~ (Just i)
-update (Deselect) = model_selected .~ Nothing
+update (Select i) = model_selected .~ i
 update (GameAction e) = model_game %~ runEvent e 
 update (Animate dt) = model_game %~ animate dt
 update (MadeConnection) = model_connected .~ True
@@ -162,7 +147,7 @@ remote outgoing = do
     
     socket <- receiveData connection 
     performEvent_ $ ffor (socket_decodeFail socket) $ \msg -> 
-      error $ "failed to decode message: " ++ show msg
+      liftIO $ putStrLn $ "unknown socket data: " ++ show msg
       
     needConnect <- whenDyn (isNothing) connection
     connection <- holdConnection $ fmap (const url) needConnect
@@ -187,6 +172,9 @@ whenDyn f dyn = do
   return $ ffilter f (tagDyn dyn postBuild)
   
   
+splitWhen :: (Reflex t) => (a -> Maybe b) -> Event t a -> (Event t b, Event t a)
+splitWhen select event = (fmapMaybe select event, ffilter (isNothing . select) event)
+  
     
 showWindow :: forall t m. (MonadWidget t m) =>  m ()
 showWindow = do
@@ -194,17 +182,19 @@ showWindow = do
   animate <- animationEvent window      
   
   rec 
-    let outgoing = never :: Event t ClientMessage 
-    
+    let outgoing = leftmost 
+          [ gameInputs
+          ]
 
     incoming <- remote outgoing
     model    <- foldDyn update initial actions
     
     
-    inputs <-  showModel model
-    let actions = {-traceEvent "action" $-} leftmost 
+    (inputs, gameInputs) <- fmap splitWhen (^? gameAction) $ showModel model
+    
+    
+    let actions = traceEvent "action" $ leftmost 
           [ inputs
-          , attachWithMaybe serverInput (current model) incoming
           , fmap (const $ Animate 4) animate
           ]     
         
@@ -216,19 +206,3 @@ main :: IO ()
 main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ showWindow
   
 
-  
-  
---     mergeMap clicks 
-    
-    
-    
---   text "Laaaalahh"
---   t <- textInput
---   body <- getBody
---     
---   text "Last key pressed: "
---   let keypressEvent = fmap show $ _el_keypress body
---   keypressDyn <- holdDyn "None" keypressEvent
---   dynText keypressDyn    
---     
---   return ()  

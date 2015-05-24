@@ -26,7 +26,7 @@ library
     text-binary
 
     
-  default-extensions: GeneralizedNewtypeDeriving, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists, TemplateHaskell, RankNTypes
+  default-extensions: GeneralizedNewtypeDeriving, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, RankNTypes
 
   
 

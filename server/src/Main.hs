@@ -190,16 +190,16 @@ application stateVar pending = do
   conn <- WS.acceptRequest pending
   WS.forkPingThread conn 30
 
-  let loop i = do
-        WS.sendTextData conn (B.pack $ show i)
-        threadDelay 1000000  
-        loop (i + 1)
-  loop 0
+--   let loop i = do
+--         WS.sendTextData conn (B.pack $ show i)
+--         threadDelay 1000000  
+--         loop (i + 1)
+--   loop 0
   
---   flip runReaderT stateVar $ do 
---     i <- newId
---     let user = User i (T.pack $ "noname" ++ show i)
---     newUser  (Client user conn)
+  flip runReaderT stateVar $ do 
+    i <- newId
+    let user = User i (T.pack $ "noname" ++ show i)
+    newUser  (Client user conn)
   
 
 
