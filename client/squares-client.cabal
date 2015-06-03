@@ -21,6 +21,7 @@ executable squares-single
     ghcjs-dom,
     reflex-dom,
     ghcjs-websockets,
+    ghcjs-websockets-reflex,
     containers,
     text,
     transformers,

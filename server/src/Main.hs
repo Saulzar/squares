@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 import Data.Char (isPunctuation, isSpace)
 import Data.Monoid (mappend)
 import Data.Text (Text)
@@ -29,37 +31,26 @@ import Data.Binary
 import GHC.Generics
 
 import Squares.Types
-import Squares.Game
+import qualified Squares.Game as G
 
-
-data Client = Client
-  { _client_user :: User
-  , _client_conn :: WS.Connection
-  }
-  
-instance Show Client where
-  show = show . _client_user
 
   
 data ServerState = ServerState 
-  {  _server_users :: M.Map UserId Client
+  {  _server_connections :: M.Map UserId WS.Connection
   ,  _server_game  :: Game
-  ,  _server_count :: Int
-  } deriving (Show)
+  ,  _server_events :: [UserEvent] 
+  } 
   
  
 $(makeLenses ''ServerState)
-$(makeLenses ''Client)
-
-client_id = client_user.user_id  
 
 -- Create a new, initial state:
 
 newServerState :: ServerState
 newServerState = ServerState 
-  { _server_users = M.empty
-  ,  _server_game = initialGame
-  ,  _server_count = 0
+  { _server_connections = M.empty
+  , _server_game = G.initialGame
+  , _server_events = []
   }
   
   
@@ -80,33 +71,57 @@ withState f = do
     f stateVar
 
 
-modifyState' :: (ServerState -> (ServerState, a)) -> Server a
-modifyState' f = withState $ \stateVar -> do
+modifyState :: (ServerState -> (ServerState, a)) -> Server a
+modifyState f = withState $ \stateVar -> do
     (state', a) <- readTVar stateVar >>= return . f
     writeTVar stateVar state'
     return a
     
 
-modifyState :: (ServerState -> ServerState) -> Server ServerState
-modifyState f = modifyState' (\state -> let state' = f state in (state', state'))
+modifyState_ :: (ServerState -> ServerState) -> Server ()
+modifyState_ f = modifyState (\state -> let state' = f state in (state', () ))
 
 
-addClient :: Client -> ServerState -> ServerState
-addClient client = over server_users (M.insert (client ^. client_id) client)
 
+runEvent :: UserEvent ->  ServerState -> ServerState
+runEvent e state = state & server_game %~ G.runEvent e
+
+                    
+                    
+                    
+tryLogin :: (Login, WS.Connection) -> ServerState -> (ServerState, (Maybe UserEvent, LoginResponse))
+tryLogin (Login user, conn) state = case maybeAdd of 
+    Nothing    -> (state, (Nothing, loginError LoginFull))
+    Just e -> state & server_connections %~ M.insert (fst e) conn 
+                    & runEvent e 
+                    & (, (Just e, loginOk (fst e)) )
+  where                      
+      maybeAdd =  G.addUser user $ state ^. server_game 
+         
 -- Remove a client:
 
-removeClient :: UserId -> ServerState -> ServerState
-removeClient client_id = over server_users (M.delete client_id)
+clientDisconnect :: UserId -> ServerState -> (ServerState, UserEvent)
+clientDisconnect i state = state & server_connections %~ (M.delete i) 
+                                 & runEvent e
+                                 & (, e)
+
+  where
+    e = (i, ev)
+    ev = if state ^. server_game . game_started 
+               then UserDisconnect else UserLeave
+
 
 
 broadcast :: (Binary a, Show a) =>  a -> Server ()
 broadcast a = do
     liftIO $ print a
-    users <- fmap (^. server_users) serverState
+    users <- fmap (^. server_connections) serverState
     
-    for_ users $ \client -> 
-      send (client ^. client_conn) a 
+    for_ users $ \conn -> 
+      send conn a 
+
+
+
 
     
 send :: (MonadIO m, Binary a, Show a) => WS.Connection -> a -> m ()
@@ -116,66 +131,97 @@ send conn msg = liftIO $ do
     where
       str = encode msg
 
-eitherDecode :: Binary a => ByteString -> Either String a
+eitherDecode :: Binary a => ByteString -> Either Text a
 eitherDecode b = case decodeOrFail b of
-    Left (_, _, e)  -> Left e
+    Left (_, _, e)  -> Left (T.pack e)
     Right (_, _, x) -> Right x
       
-receive :: (MonadIO m, Binary a, Show a) => WS.Connection -> m (Either String a)
+receive :: (MonadIO m, Binary a, Show a) => WS.Connection -> m (Either Text a)
 receive conn = liftIO $ do
   str <- WS.receiveData conn
   let r = eitherDecode str
   putStrLn ("received: " ++ show r)
   return r
        
-    
-newId :: Server UserId
-newId = modifyState' inc where
-  inc state = (over server_count (+1) state, UserId $ state ^. server_count) 
+       
 
 
-sendClient :: (MonadIO m, Binary a, Show a) => Client -> a -> m ()
-sendClient client a = send (client ^. client_conn) a
-
-serverError :: (MonadIO m) => WS.Connection -> String -> m ()
-serverError conn err = send conn (ServerError (T.pack err))
+-- serverError :: (MonadIO m) => WS.Connection -> String -> m ()
+-- serverError conn err = send conn (ServerError (T.pack err))
   
     
-gameState ::  Client -> ServerState -> ServerMessage
-gameState client state = Welcome (state^.server_game) users (client ^. client_id)  where 
-   users = map _client_user $ M.elems (state ^. server_users) 
+gameReset ::  ServerState -> ServerMsg
+gameReset state = ServerReset (state^.server_game) 
  
   
-newUser :: Client -> Server ()
-newUser  client = flip finally disconnect $ do      
-  state <- modifyState $ addClient client
-  
-  sendClient client (gameState client state) 
-  broadcast $ Connected i (client ^. client_user . user_name) 
-  runClient client
+runUser :: (UserId, WS.Connection) -> Server ()
+runUser (i, conn) = flip finally disconnect $ runUser'    
 
-  where   
-    i = client ^. client_id
+  where 
+    
+    runUser' = do
+      received <- receive conn
+      either onErr onCmd received
+
+    runEvent' e = do 
+      modifyState_ $ runEvent (i, e)
+      broadcast (ServerEvent (i, e))
+    
+    onCmd cmd = do 
+      case cmd of
+        ClientChat msg    -> runEvent' (ChatEvent msg)
+        ClientMove move   -> return () --TODO 
+        ClientFrame ->  return ()
+      
+        
+      
+    onErr err = send conn (ServerError $ T.concat ["Decode error: ", err])
+    
     disconnect = do
-      modifyState $ removeClient i
-      broadcast $ Disconnected i
+      e <- modifyState $ clientDisconnect i
+      broadcast (ServerEvent e)
+    
+-- newUser :: Client -> Server ()
+-- newUser  client = flip finally disconnect $ do  
+--   
+--   
+--   sendClient client (gameState client state) 
+--   modifyState $ addClient client
+--   
+-- 
+--   broadcast $ Connected i (client ^. client_user . user_name) 
+--   runClient client
+-- 
+--   where   
+--     i = client ^. client_id
+--     disconnect = do
+--       modifyState $ removeClient i
+--       broadcast $ Disconnected i
     
 
-
-runClient :: Client -> Server ()
-runClient client = run' where
-  run' = do
-    received <- receive conn
-    either onErr onCmd received
-    
-  onCmd msg = case msg of 
-    ClientChat msg -> broadcast (Chat i msg) >> run'              
-    
-  onErr err = send conn (ServerError (T.pack err))
-
-  i = client ^. client_id
-  conn = client ^. client_conn
+runLogin :: WS.Connection -> Server ()
+runLogin conn = do
+  received <- receive conn
+  either onErr onLogin received
   
+  where
+    onLogin msg = case msg of 
+      login -> do 
+        (ev, response) <- modifyState (tryLogin (login, conn))
+        send conn response
+        traverse_ broadcast ev
+        
+        case response of 
+             Right i  -> runUser (i, conn)
+             _        -> return ()
+        
+    onErr err = send conn (loginError $ LoginDataError $ T.concat ["Decode error: ", err])
+    
+    
+
+
+
+   
 port :: Int
 port = 9160
 
@@ -190,16 +236,8 @@ application stateVar pending = do
   conn <- WS.acceptRequest pending
   WS.forkPingThread conn 30
 
---   let loop i = do
---         WS.sendTextData conn (B.pack $ show i)
---         threadDelay 1000000  
---         loop (i + 1)
---   loop 0
-  
-  flip runReaderT stateVar $ do 
-    i <- newId
-    let user = User i (T.pack $ "noname" ++ show i)
-    newUser  (Client user conn)
+  flip runReaderT stateVar $ runLogin conn
+
   
 
 

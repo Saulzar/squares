@@ -2,7 +2,10 @@
 module Squares.Game 
   ( module Squares.Game.Types
   , initialGame
+  , runMove
   , runEvent
+  , addUser
+  
   , rotateDir
   , animate
   , progress
@@ -31,7 +34,10 @@ mkSquare pos = Square
 initialGame :: Game
 initialGame = Game 
   { _game_squares = Map.fromList $ zip ids squares 
-  , _game_bounds  = V2 20 10 }
+  , _game_bounds  = V2 20 10
+  , _game_num_players = 4
+  , _game_players = []
+  , _game_started = False}
   where
     ids = map SquareId [1..]
     squares = map mkSquare [V2 3 3, V2 3 4, V2 4 3, V2 4 4, V2 4 5, V2 5 5, V2 6 4] 
@@ -139,12 +145,12 @@ xorMaybes ma mb = case (ma, mb) of
     
     
 -- Try a rotation using the arrow key direction
-rotateDir :: Game -> SquareId -> Dir -> Maybe GameEvent
+rotateDir :: Game -> SquareId -> Dir -> Maybe GameMove
 rotateDir model i dir =  do
   sq <- model^?square i 
   guard (isNothing $ sq ^. square_rotation)
   
-  fmap (RotateEvent i . _rot_dir) $ 
+  fmap (RotateMove i . _rot_dir) $ 
     rotateDir' model (sq^.square_position) dir  
   
 unique :: [a] -> Maybe a
@@ -190,8 +196,23 @@ rotateEvent i dir game =  maybe game startRotate rotation where
   startRotate r = game & (square i . square_rotation) .~ Just (r, 0)
   
   
-runEvent :: GameEvent -> Game -> Game
-runEvent (RotateEvent i dir) = rotateEvent i dir 
+runMove :: UserMove -> Game -> Game
+runMove (_, RotateMove i dir) = rotateEvent i dir 
+
+
+runEvent :: UserEvent -> Game -> Game
+runEvent _ game = game
+
+
+nextUser :: Game -> Maybe UserId
+nextUser game = msum ids where
+    ids = map (invLookup . UserId) [1..game^.game_num_players]
+    invLookup i = case Map.lookup i (game^.game_players) of
+                       Just _ -> Nothing
+                       Nothing -> Just i
+
+addUser :: User -> Game -> Maybe UserEvent
+addUser user game = fmap (\i -> (i, JoinEvent user)) $ nextUser game
 
 
 advance :: Int -> Square -> Square

@@ -4,6 +4,7 @@
     reflex-dom, 
     file-embed, 
     ghcjs-websockets,
+    ghcjs-websockets-reflex,
     containers,
     text,
     transformers,
@@ -25,6 +26,7 @@ mkDerivation {
     reflex
     reflex-dom
     ghcjs-websockets
+    ghcjs-websockets-reflex
     containers
     text
     transformers

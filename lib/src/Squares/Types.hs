@@ -1,52 +1,68 @@
 {-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes #-}
 
-module Squares.Types
-  ( ServerMessage (..)
-  , UserId (..)
-  , User(..)
-  , ClientMessage (..)
+module Squares.Types 
+  ( module Squares.Game.Types
+  , ServerMsg(..)
+  , ClientMsg(..)
+  , loginOk
+  , loginError
   
-  , user_id
-  , user_name
+  , LoginResponse
+  , LoginError(..)
+  , Login(..)
   
   ) where
+
+
 
 
 import GHC.Generics
 import qualified Data.Map.Strict as M
 
-import Data.Text
+import Data.Text (Text)
 import Data.Text.Binary
 
 import Data.Binary
 import Control.Lens
+import Control.Monad
 
-import Squares.Game.Types (Game)
-
-
-newtype UserId = UserId { unUser :: Int } deriving (Eq, Ord, Show, Generic)
-data User = User { _user_id :: !UserId, _user_name :: !Text } deriving (Show, Generic)
+import Squares.Game.Types 
 
 
-$( makeLenses ''User)
-
-
-data ServerMessage 
-    = Connected !UserId !Text
-    | Disconnected !UserId
-    | Chat !UserId !Text
-    | ServerError !Text 
-    | Welcome !Game [User] !UserId
+data ServerMsg 
+    = ServerEvent UserEvent
+    | ServerFrame [UserMove]
+    | ServerReset !Game
+    | ServerError !Text
       deriving (Show, Generic)
       
-data ClientMessage
-   = ClientChat !Text
-   | ClientSettings !Text
+data ClientMsg 
+    = ClientChat  !Text
+    | ClientMove  !GameMove 
+    | ClientFrame 
       deriving (Show, Generic)
 
       
-  
-instance Binary ServerMessage 
-instance Binary ClientMessage
-instance Binary User
-instance Binary UserId
+data Login = Login !User deriving (Show, Generic)
+type LoginResponse = Either LoginError UserId 
+
+loginOk :: UserId -> LoginResponse
+loginOk = Right
+
+loginError :: LoginError -> LoginResponse
+loginError = Left
+
+data LoginError = LoginFull | LoginDataError !Text deriving (Show, Generic)
+
+      
+liftM concat $ mapM makePrisms 
+    [ ''ServerMsg
+    , ''ClientMsg
+    ]
+
+instance Binary ServerMsg
+instance Binary ClientMsg
+instance Binary LoginError  
+instance Binary Login
+
+
