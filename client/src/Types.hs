@@ -8,19 +8,28 @@ import Control.Monad
 
 import Control.Lens
 import Squares.Types
-import Squares.Game
+
+import Data.Text (Text)
 
 
-data Model = Model 
+data Model = Login | Playing { _model_playing :: PlayingState } 
+
+
+data PlayingState = PlayingState 
   { _model_game :: Game
+  , _model_user :: UserId
   , _model_selected :: Maybe SquareId
   , _model_keymap :: Map Int GameInput
-  , _model_connected :: Bool
   }  
+
+
+  
+  
   
 data Action = Select (Maybe SquareId) 
-            | GameAction { _game_event :: GameEvent } 
-            | Animate { _animate_action :: Int } 
+            | MoveAction { _move_action    :: UserMove }
+            | ChatAction { _chat_action    :: Text }
+            | Animate    { _animate_action :: Int } 
             | MadeConnection  
               deriving (Show)
 

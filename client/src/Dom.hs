@@ -27,12 +27,10 @@ import GHCJS.DOM.Types hiding (Event)
 import GHCJS.DOM.Document
 import GHCJS.DOM.DOMWindow
   
-import GHCJS.DOM.HTMLElement
 import GHCJS.DOM.Element
 
 import GHCJS.DOM.UIEvent
-import GHCJS.DOM.EventM (event, EventM, stopImmediatePropagation)
-import GHCJS.DOM.Node (nodeAppendChild, toNode)  
+import GHCJS.DOM.EventM (event, stopImmediatePropagation)
 
 import Data.Dependent.Sum (DSum ((:=>)))
 
@@ -67,8 +65,8 @@ foreign import javascript unsafe "$1[\"cancelAnimationFrame\"]($2)"
 
 -- | <https://developer.mozilla.org/en-US/docs/Web/API/Window.cancelAnimationFrame Mozilla Window.cancelAnimationFrame documentation> 
 cancelAnimationFrame :: (MonadIO m) => DOMWindow -> Int -> m ()
-cancelAnimationFrame self id
-  = liftIO (js_cancelAnimationFrame (unDOMWindow self) id)
+cancelAnimationFrame self i
+  = liftIO (js_cancelAnimationFrame (unDOMWindow self) i)
  
  
 animationEvent ::  MonadWidget t m => DOMWindow -> m (Event t ())

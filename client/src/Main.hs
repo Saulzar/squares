@@ -29,30 +29,21 @@ import Data.Text (Text)
 
 import Dom
 import JavaScript.WebSockets.Reflex.WebSocket
+import qualified JavaScript.WebSockets as WS
+
+
 import Types
 
 import Event
 import View
-
-
-initial :: Model
-initial = Model 
-          { _model_game = initialGame
-          , _model_selected = Nothing
-          , _model_keymap = defaultKeys
-          }
-
        
 
 
 runUpdate :: Action -> Model -> Model  
 runUpdate (Select i) = model_selected .~ i
-runUpdate (GameAction e) = model_game %~ runMove e 
+runUpdate (MoveAction e) = model_game %~ runMove e 
 runUpdate (MadeConnection) = model_connected .~ True
 runUpdate (Animate dt) = model_game %~ animate dt
-
-
-    
 
   
   
@@ -61,26 +52,24 @@ serverInput :: Model -> ServerMsg -> Maybe Action
 serverInput model msg = Nothing
 
 
-tryLogin :: Event t Login -> Event Connection -> m (Event t Text, Event t (Connection, UserId))
+tryLogin :: (MonadWidget t m) => Event t Login -> Event t Connection -> m (Event t Text, Event t (Connection, UserId))
 tryLogin login connection = do
     loginDyn <- holdJust login 
-    ready <- fmap filterMaybes $ attachWith (\u c -> fmap (,c) u) (current userDyn) connection  
+    ready <- fmap filterMaybes $ attachWith (liftM2 (,)) loginDyn (fmap Just connection)  
     
-    result <- performAsync ready $ \(login', conn) -> do
+    fmap splitEither $ performAsync ready $ \(login', conn) -> do
       WS.sendData conn login'     
-      fmap (split conn) $ WS.receiveDataMaybe conn
+      r <- WS.receiveDataMaybe conn
+      return (r & _Right %~ (conn,))
 
-  where
     
-    split conn r = (err, fmap (conn,) i)
-      where (err, i) = splitEither r 
-            
+   
 
 remote :: (MonadWidget t m) => Event t Login -> Event t ClientMsg -> m (Event t ServerMsg, Event t UserId, Event t Text)
 remote login outgoing = do
   rec
     
-    socket <- receiveData (fmap fst loggedIn)
+    socket <- receive (fmap fst loggedIn)
     performEvent_ $ ffor (socket_decodeFail socket) $ \msg -> 
       liftIO $ putStrLn $ "unknown socket data: " ++ show msg
       
@@ -132,7 +121,7 @@ showWindow = do
     
     
     let actions = leftmost 
-          [ ffilter (nullOf game_event) inputs
+          [ ffilter (nullOf move_action) inputs
           , serverAction
           , tagConst (Animate 4) animate
           ]

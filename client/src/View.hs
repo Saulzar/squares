@@ -34,18 +34,28 @@ defaultKeys =
   , (38, ArrowKey UpDir)
   , (39, ArrowKey RightDir)
   , (40, ArrowKey DownDir)
-  ]           
+  ]         
   
-gameEvent :: GameInput -> Model -> Maybe Action
-gameEvent (ArrowKey dir) model = do
+  
+initial :: PlayingState
+initial = PlayingState 
+  { _model_game = emptyGame
+  , _model_user = UserId 0
+  , _model_selected = Nothing
+  , _model_keymap = defaultKeys
+  }
+  
+  
+gameMove :: GameInput -> Model -> Maybe Action
+gameMove (ArrowKey dir) model = do
   selected <- _model_selected model
-  fmap GameAction $ rotateDir (_model_game model) selected dir 
+  fmap MoveAction $ rotateDir (_model_game model) selected dir 
     
 
 keyInput :: Model -> Int -> Maybe Action
 keyInput model key = do
   input <- Map.lookup key (_model_keymap model)
-  gameEvent input model  
+  gameMove input model  
   
   
               
@@ -54,20 +64,47 @@ listView xs view = do
   events <- listViewWithKey xs view
   return $ fmapMaybe (listToMaybe . Map.elems) events
   
+  
+maybeToMap :: k -> Maybe a -> Map k v
+maybeToMap k Nothing = Map.empty
+maybeToMap k (Just a) = Map.singleton k a
+  
+maybeView :: Dynamic t (Maybe a) ->  (Dynamic t a -> m (Event t b)) -> m (Event t b)
+maybeView a view = do
+    list <- mapDyn (maybeToMap 1) a
+    listView list (const view)
+  
+ 
+
 showModel :: (MonadWidget t m) => Dynamic t Model -> m (Event t Action)
 showModel model = do
+    playing <- mapDyn (^? _Playing) model)  
+    maybeView playing showPlaying
+    
+    login <- mapDyn (^? _Login) model)  
+    maybeView playing showPlaying
+    
+    
+ 
+
+showLogin :: (MonadWidget t m) => m (Event t Action)
+showLogin = return never
+
+  
+showPlaying :: (MonadWidget t m) => Dynamic t Playing -> m (Event t Action)
+showPlaying model = do
   
   squares <- mapDyn squareDisplay model
   svg_ attrs $ do 
     
     allKeys <- windowKeydown_  
-    let key =  attachWithMaybe keyInput (current model) allKeys
+    let keyEvt =  attachWithMaybe keyInput (current model) allKeys
   
-    click <- clicked_ 
-    let deselect = fmap (const (Select Nothing)) click
+    clickEvt <- clicked_ 
+    let deselectEvt = fmap (const (Select Nothing)) clickEvt
     
-    select <-  listView squares showSquare
-    return $ leftmost [deselect, select, key]
+    selectEvt <-  listView squares showSquare
+    return $ leftmost [deselectEvt, selectEvt, keyEvt]
     
   where
     
@@ -89,9 +126,9 @@ showSquare :: MonadWidget t m => SquareId -> Dynamic t SquareApp -> m (Event t A
 showSquare i sq = do
   attrs <- mapDyn squareAttrs sq
   click <- rect_ attrs $ clicked_ 
-  let select = fmap (const (Select $ Just i)) click
+  let selectEvt = fmap (const (Select $ Just i)) click
 
-  return select
+  return selectEvt
   
   
 squareAttrs :: SquareApp -> AttributeMap
