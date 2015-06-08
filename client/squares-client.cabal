@@ -13,15 +13,13 @@ Cabal-version: >=1.2
 
 executable squares-single
   hs-source-dirs: src
-  main-is: Main.hs
+  main-is: Single.hs
   build-depends:
     base,
     squares,
     reflex,
     ghcjs-dom,
     reflex-dom,
-    ghcjs-websockets,
-    ghcjs-websockets-reflex,
     containers,
     text,
     transformers,
@@ -40,3 +38,7 @@ executable squares-single
   other-extensions: TemplateHaskell
   ghc-prof-options: -fprof-auto
   ghc-options: -fwarn-tabs -funbox-strict-fields -O2
+  
+
+
+    

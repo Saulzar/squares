@@ -94,9 +94,9 @@ tryLogin (Login user, conn) state = case maybeAdd of
     Nothing    -> (state, (Nothing, loginError LoginFull))
     Just e -> state & server_connections %~ M.insert (fst e) conn 
                     & runEvent e 
-                    & (, (Just e, loginOk (fst e)) )
+                    & \state' ->  (state', (Just e, loginOk (fst e, state^.server_game)) )
   where                      
-      maybeAdd =  G.addUser user $ state ^. server_game 
+      maybeAdd =  G.addUser user $ state^.server_game 
          
 -- Remove a client:
 
@@ -212,8 +212,8 @@ runLogin conn = do
         traverse_ broadcast ev
         
         case response of 
-             Right i  -> runUser (i, conn)
-             _        -> return ()
+             Right (i, _)  -> runUser (i, conn)
+             _             -> return ()
         
     onErr err = send conn (loginError $ LoginDataError $ T.concat ["Decode error: ", err])
     

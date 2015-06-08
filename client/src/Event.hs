@@ -11,6 +11,8 @@ import Control.Lens
 import Control.Concurrent
 import Data.Maybe
 
+import qualified Data.Map as Map
+import Data.Map (Map)
 
 
 filterMaybes :: (Reflex t) => Event t (Maybe a) -> Event t a
@@ -39,7 +41,7 @@ holdJust :: (MonadWidget t m) => Event t a -> m (Behavior t (Maybe a))
 holdJust e = hold Nothing (fmap Just e)
 
 holdJustDyn :: (MonadWidget t m) => Event t a -> m (Dynamic t (Maybe a))
-holdJustDyn e = hold Nothing (fmap Just e)
+holdJustDyn e = holdDyn Nothing (fmap Just e)
   
 splitWhen :: (Reflex t) => (a -> Maybe b) -> Event t a -> (Event t b, Event t a)
 splitWhen sel event = (fmapMaybe sel event, ffilter (isNothing . sel) event)
@@ -92,3 +94,36 @@ counter event = foldDyn (+) 0 (fmap (const 1) event)
   
 delay :: MonadWidget t m => Int -> Event t a -> m (Event t a)
 delay n event = performAsync event (\a -> threadDelay n >> return a)
+
+
+
+listView :: (MonadWidget t m, Ord k) => Dynamic t (Map k v) -> (k -> Dynamic t v -> m (Event t b)) -> m (Event t b)
+listView xs view = do 
+  events <- listViewWithKey xs view
+  return $ fmapMaybe (listToMaybe . Map.elems) events
+  
+  
+maybeToMap :: k -> Maybe a -> Map k a
+maybeToMap k Nothing = Map.empty
+maybeToMap k (Just a) = Map.singleton k a
+  
+maybeView :: (MonadWidget t m) => Dynamic t (Maybe a) ->  (Dynamic t a -> m (Event t b)) -> m (Event t b)
+maybeView a view = do
+    list <- mapDyn (maybeToMap (1::Int)) a
+    listView list (const view)
+    
+    
+stateMachine :: (MonadWidget t m) => a -> (a -> m (Event t a)) -> m (Event t a)   
+stateMachine initial view = do
+  rec
+    
+  
+    r <- widgetHold (view initial) (fmap view e)
+    let e = switchPromptlyDyn r
+  
+  return e
+  
+  
+foldMany :: (MonadWidget t m) => (a -> b -> b) -> b -> Event t [a] -> m (Dynamic t b)
+foldMany accum initial e = foldDyn accum' initial e where
+  accum' = flip (foldr accum)  

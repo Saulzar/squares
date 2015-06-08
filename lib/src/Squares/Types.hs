@@ -44,9 +44,9 @@ data ClientMsg
 
       
 data Login = Login !User deriving (Show, Generic)
-type LoginResponse = Either LoginError UserId 
+type LoginResponse = Either LoginError (UserId, Game) 
 
-loginOk :: UserId -> LoginResponse
+loginOk :: (UserId, Game) -> LoginResponse
 loginOk = Right
 
 loginError :: LoginError -> LoginResponse
