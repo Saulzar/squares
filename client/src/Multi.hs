@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, OverloadedLists #-}
+{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections #-}
 module Main where
 
 import Reflex
@@ -26,17 +26,16 @@ import Squares.Game
 import Squares.Types
 
 import Data.Text (Text)
+import qualified Data.Text as T
 
 import Dom
 import JavaScript.WebSockets.Reflex.WebSocket
 import qualified JavaScript.WebSockets as WS
 
 
-import qualified SinglePlayer.Types as S
-import qualified MultiPlayer.Types as MP
 
-import MultiPlayer.View
-
+import Game.View
+import Game.Types
 
 import Event
 import Dom       
@@ -48,19 +47,25 @@ data ConnectionState
     | LoginState Connection
     | PlayingState (Connection, (UserId, Game))
     | ErrorState !Text
-      deriving Show
   
+
+liftM concat $ do
+  prisms <- mapM makePrisms [ ''ConnectionState ]
+  return (prisms)  
     
-    
-tryLogin :: (MonadWidget t m) => Event t (Login, Connection) -> m (Event t LoginResult)
+tryLogin :: (MonadWidget t m) => Event t (Login, Connection) -> m (Event t LoginResponse)
 tryLogin e = do
     
     r <-performAsync e $ \(login, conn) -> do
-      WS.sendData conn login'     
-      r <- WS.receiveDataMaybe conn
+      WS.sendData conn login    
+      WS.receiveDataMaybe conn
 
     return (filterMaybes r)    
   
+  
+makeLogin :: String -> Login
+makeLogin name = Login user where
+  user = User (T.pack name)
 
 loginBox :: (MonadWidget t m) => m (Event t Login)
 loginBox = do
@@ -68,10 +73,10 @@ loginBox = do
   text "Chose a name: "
   t <- textInput
   go <- button "Go!"
-  return $ fmap Login $ tag (current _textInput_value) go
+  return $ fmap makeLogin $ tag (current $ _textInput_value t) go
   
   
-stateView :: ConnectionState -> m (Event t ConnectionState)
+stateView :: (MonadWidget t m) => ConnectionState -> m (Event t ConnectionState)
 stateView (ConnectState url) = do
   connected <- once url >>= openConnection
   return (fmap LoginState connected)
@@ -82,23 +87,20 @@ stateView (LoginState conn) = do
   result <- tryLogin (fmap (, conn) login)
   
   return $ ffor result $ \r -> case r of 
-      Left  err     -> ErrorState $ loginError err
-      Right success -> LoggedIn (conn, success)
+      Left  err     -> ErrorState $ showLoginError err
+      Right success -> PlayingState (conn, success)
       
 
-loginError :: LoginError -> Text
-loginError LoginFull      = "Game full"
-loginError LoginDataError = "Client/server version mismatch"
+showLoginError :: LoginError -> Text
+showLoginError LoginFull        = "Game full"
+showLoginError (LoginDataError _) = "Client/server version mismatch"
 
 
 disconnectError :: WS.ConnClosing -> Text
-disconnectedError _ = "Connection lost"
+disconnectError _ = "Connection lost"
 
   
-
-  
-  
-multiPlayer :: (Connection, (UserId, Game)) -> m (Event t GameEvent)
+multiPlayer :: (MonadWidget t m) =>  (Connection, (UserId, Game)) -> m (Event t GameEvent)
 multiPlayer (conn, (uid, game)) = do
   
   
@@ -106,58 +108,31 @@ multiPlayer (conn, (uid, game)) = do
   
 windowView   :: forall t m. (MonadWidget t m) =>  m ()
 windowView = do
-  
-  stateEvent <- fmap switchPromptlyDyn $ 
-      widgetHold (stateView initial) (fmap stateView transitions)
-      
-  let transitions = 
-        [ stateEvent
-        , fmap (ErrorState . disconnectError) disconnectEvent
-        ]
-  
-  disconnectEvent <- pollConnection $ fmap (^? _LoginState) stateEvent
-  
-  gameEvent <- fmap switchPromptlyDyn $
-    widgetHold (return never) $ fmapMaybe (^? _PlayingState) state
-  
+  rec
+    stateEvent <- fmap switchPromptlyDyn $ 
+        widgetHold (stateView initial) (fmap stateView transitions)
+        
+    let transitions = 
+          [ stateEvent
+          , fmap (ErrorState . disconnectError) disconnectEvent
+          ]
+    
+    disconnectEvent <- pollConnection pollRate $ fmapMaybe (^? _LoginState) stateEvent
+    
+    gameEvent <- fmap switchPromptlyDyn $
+      widgetHold (return never) $ fmapMaybe (^? _PlayingState) stateEvent
+ 
+  return ()
  
   where
   
     url = "ws://0.0.0.0:9160" :: Text 
     initial = ConnectState url
+    pollRate = 100000
 
   
 main :: IO ()
-main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ showWindow
-  {-
-   executable squares-multi
-  hs-source-dirs: src
-  main-is: Multi.hs
-  build-depends:
-    base,
-    squares,
-    reflex,
-    ghcjs-dom,
-    reflex-dom,
-    ghcjs-websockets,
-    ghcjs-websockets-reflex,
-    containers,
-    text,
-    transformers,
-    lens,
-    linear,
-    dependent-sum,
-    file-embed,
-    ghcjs-base,
-    hashable,
-    binary,
-    time  
-    
-  default-extensions: OverloadedStrings, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes
-
-
-  other-extensions: TemplateHaskell
-  ghc-prof-options: -fprof-auto
-  ghc-options: -fwarn-tabs -funbox-strict-fields -O2-}
+main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ windowView
+  
   
 
