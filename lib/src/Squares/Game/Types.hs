@@ -11,6 +11,7 @@ module Squares.Game.Types
   , UserId(..)
   , UserMove
   , UserEvent
+  , UserName
   
   , User(..)
   
@@ -24,7 +25,9 @@ module Squares.Game.Types
   
   , rot_dir, rot_pivot, rot_dest, rot_angle
   , square_rotation, square_position
-  , game_squares, game_bounds, game_num_players, game_players, game_started
+  , game_squares, game_bounds, game_num_players, game_players, game_started, game_event_log
+  
+  , user_name, user_connected
     
   )
   where
@@ -67,8 +70,10 @@ data Square = Square
   
 newtype SquareId = SquareId { unSquare :: Int } deriving (Eq, Ord, Show, Generic, Binary)
 
+type UserName = Text
+
 newtype UserId = UserId { unUser :: Int } deriving (Eq, Ord, Show, Generic)
-data User = User {  _user_name :: !Text } deriving (Show, Generic)
+data User = User {  _user_name :: !UserName, _user_connected :: !Bool } deriving (Show, Generic)
 
 
 data Game = Game
@@ -77,6 +82,7 @@ data Game = Game
   , _game_bounds   :: !Coord
   , _game_num_players :: !Int
   , _game_started     :: !Bool
+  , _game_event_log   :: [UserEvent]
   } deriving (Show, Generic)
   
   
@@ -86,7 +92,7 @@ data GameMove = RotateMove SquareId RotateDir deriving (Show, Generic)
 
 data GameEvent
     = ChatEvent !Text
-    | JoinEvent !User
+    | JoinEvent !UserName
     | UserLeave 
     | UserDisconnect
     | UserReconnect
@@ -118,6 +124,7 @@ liftM concat $ mapM makeLenses
   [ ''Game
   , ''Square
   , ''Rotation
+  , ''User
   ]  
 
   

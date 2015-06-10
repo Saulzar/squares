@@ -14,6 +14,8 @@ import Data.List (intersperse)
 import Control.Lens
 import Data.Monoid 
 
+import Control.Monad.IO.Class
+
 
 import Squares.Game
 import Squares.Types
@@ -66,12 +68,11 @@ gameAction model (ArrowKey dir)  = do
 gameView :: (MonadWidget t m) => Dynamic t GameModel -> Behavior t Settings -> m (Event t [GameAction])
 gameView model settings = do
   
-
   svg_ attrs $ do 
     
     keyPress <- windowKeydown_  
     let keyInput  = attachWithMaybe (flip Map.lookup) keyMap keyPress 
-        keyAction = attachDynWithMaybe gameAction model keyInput
+        keyAction = attachWithMaybe gameAction (current model) keyInput
   
     click <- clicked_ 
     let deSelect = fmap (const (Select Nothing)) click

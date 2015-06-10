@@ -64,8 +64,8 @@ tryLogin e = do
   
   
 makeLogin :: String -> Login
-makeLogin name = Login user where
-  user = User (T.pack name)
+makeLogin name = Login (T.pack name)
+
 
 loginBox :: (MonadWidget t m) => m (Event t Login)
 loginBox = do
@@ -76,12 +76,12 @@ loginBox = do
   return $ fmap makeLogin $ tag (current $ _textInput_value t) go
   
   
-stateView :: (MonadWidget t m) => ConnectionState -> m (Event t ConnectionState)
-stateView (ConnectState url) = do
+connectionState :: (MonadWidget t m) => ConnectionState -> m (Event t ConnectionState)
+connectionState (ConnectState url) = do
   connected <- once url >>= openConnection
   return (fmap LoginState connected)
 
-stateView (LoginState conn) = do
+connectionState (LoginState conn) = do
   
   login <- loginBox
   result <- tryLogin (fmap (, conn) login)
@@ -90,37 +90,45 @@ stateView (LoginState conn) = do
       Left  err     -> ErrorState $ showLoginError err
       Right success -> PlayingState (conn, success)
       
+      
+connectionState (PlayingState _) = return never
+connectionState (ErrorState msg) = do
+  text $ T.unpack msg 
+  return never
+      
 
 showLoginError :: LoginError -> Text
 showLoginError LoginFull        = "Game full"
-showLoginError (LoginDataError _) = "Client/server version mismatch"
+showLoginError (LoginDataError _) = "Data error between client/server"
 
 
 disconnectError :: WS.ConnClosing -> Text
 disconnectError _ = "Connection lost"
 
   
-multiPlayer :: (MonadWidget t m) =>  (Connection, (UserId, Game)) -> m (Event t GameEvent)
+multiPlayer :: (MonadWidget t m) =>  (Connection, (UserId, Game)) -> m ()
 multiPlayer (conn, (uid, game)) = do
   
+  text $ "Ta daaah!" ++ show (uid, game)
   
-  return never
+  return ()
   
 windowView   :: forall t m. (MonadWidget t m) =>  m ()
 windowView = do
   rec
     stateEvent <- fmap switchPromptlyDyn $ 
-        widgetHold (stateView initial) (fmap stateView transitions)
+        widgetHold (connectionState initial) (fmap connectionState transitions)
         
-    let transitions = 
-          [ stateEvent
-          , fmap (ErrorState . disconnectError) disconnectEvent
+    let transitions = leftmost
+          [ fmap (ErrorState . disconnectError) disconnectEvent
+          , stateEvent
           ]
     
-    disconnectEvent <- pollConnection pollRate $ fmapMaybe (^? _LoginState) stateEvent
+    let connected = fmapMaybe (^? _LoginState) stateEvent
+        loggedIn  = fmapMaybe (^? _PlayingState) stateEvent 
     
-    gameEvent <- fmap switchPromptlyDyn $
-      widgetHold (return never) $ fmapMaybe (^? _PlayingState) stateEvent
+    disconnectEvent <- pollConnection pollRate $ connected
+    widgetHold (return ()) $ fmap multiPlayer loggedIn
  
   return ()
  

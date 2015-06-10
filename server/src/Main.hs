@@ -86,7 +86,7 @@ modifyState_ f = modifyState (\state -> let state' = f state in (state', () ))
 runEvent :: UserEvent ->  ServerState -> ServerState
 runEvent e state = state & server_game %~ G.runEvent e
 
-                    
+                                        
                     
                     
 tryLogin :: (Login, WS.Connection) -> ServerState -> (ServerState, (Maybe UserEvent, LoginResponse))
@@ -94,7 +94,7 @@ tryLogin (Login user, conn) state = case maybeAdd of
     Nothing    -> (state, (Nothing, loginError LoginFull))
     Just e -> state & server_connections %~ M.insert (fst e) conn 
                     & runEvent e 
-                    & \state' ->  (state', (Just e, loginOk (fst e, state^.server_game)) )
+                    & \state' ->  (state', (Just e, loginOk (fst e, state'^.server_game)) )
   where                      
       maybeAdd =  G.addUser user $ state^.server_game 
          

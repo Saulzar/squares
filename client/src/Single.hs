@@ -45,7 +45,7 @@ singlePlayer initial = do
     inputs <- gameView  model settings
 
     let settings = constant defaultSettings
-        actions = mconcat 
+        actions = traceEvent "actions" $ mconcat 
           [ inputs
           , tagConst [Animate 4] animate
           ]
@@ -61,3 +61,30 @@ main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ (singlePlayer ini
     initial = initialModel initialGame
   
 
+-- executable squares-single
+--   hs-source-dirs: src
+--   main-is: Single.hs
+--   build-depends:
+--     base,
+--     squares,
+--     reflex,
+--     ghcjs-dom,
+--     reflex-dom,
+--     containers,
+--     text,
+--     transformers,
+--     lens,
+--     linear,
+--     dependent-sum,
+--     file-embed,
+--     ghcjs-base,
+--     hashable,
+--     binary,
+--     time
+--   
+--   default-extensions: OverloadedStrings, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes
+-- 
+-- 
+--   other-extensions: TemplateHaskell
+--   ghc-prof-options: -fprof-auto
+--   ghc-options: -fwarn-tabs -funbox-strict-fields -O2

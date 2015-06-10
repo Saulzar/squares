@@ -37,7 +37,9 @@ initialGame = Game
   , _game_bounds  = V2 20 10
   , _game_num_players = 4
   , _game_players = []
-  , _game_started = False}
+  , _game_started = False
+  , _game_event_log = []
+  }
   where
     ids = map SquareId [1..]
     squares = map mkSquare [V2 3 3, V2 3 4, V2 4 3, V2 4 4, V2 4 5, V2 5 5, V2 6 4] 
@@ -171,7 +173,7 @@ rotateDir' model pos dir = unique search
 relative  :: Coord -> Corner -> Vec ->  Coord
 relative pos corner v  =  (basis !* v) + pos where
   basis = cornerBasis corner 
- 
+  
       
       
 dirVec :: Dir -> Vec
@@ -200,8 +202,25 @@ runMove :: UserMove -> Game -> Game
 runMove (_, RotateMove i dir) = rotateEvent i dir 
 
 
+newUser :: UserName -> User
+newUser name = User 
+  { _user_name = name
+  , _user_connected = True
+  }
+
 runEvent :: UserEvent -> Game -> Game
-runEvent _ game = game
+runEvent (i, e)  game = game' & game_event_log %~ ((i, e):)
+  
+  where 
+    
+    player = game_players . at i
+    game' = case e of
+      (ChatEvent msg)  -> game 
+      (JoinEvent name) -> game & player .~ Just (newUser name)   
+      UserLeave        -> game & player .~ Nothing
+      UserDisconnect   -> game & player . traverse . user_connected .~ False
+      UserReconnect    -> game & player . traverse . user_connected .~ True 
+    
 
 
 nextUser :: Game -> Maybe UserId
@@ -211,7 +230,7 @@ nextUser game = msum ids where
                        Just _ -> Nothing
                        Nothing -> Just i
 
-addUser :: User -> Game -> Maybe UserEvent
+addUser :: UserName -> Game -> Maybe UserEvent
 addUser user game = fmap (\i -> (i, JoinEvent user)) $ nextUser game
 
 
