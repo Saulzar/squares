@@ -11,6 +11,9 @@ module Squares.Types
   , LoginError(..)
   , Login(..)
   
+  , _ServerEvent, _ServerFrame, _ServerReset, _ServerError
+  , _ClientChat, _ClientMove, _ClientFrame
+  
   ) where
 
 

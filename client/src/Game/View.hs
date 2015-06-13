@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 
-module Game.View (gameView, updateGame, defaultSettings, initialModel) where
+module Game.View (gameView, updateGame, defaultSettings, gameModel) where
 
 
 import Reflex
@@ -32,10 +32,11 @@ updateGame :: GameAction -> GameModel -> GameModel
 updateGame (Select i)        = gm_selected .~ i
 updateGame (MoveAction e)    = gm_game %~ runMove e 
 updateGame (Animate dt)      = gm_game %~ animate dt
+updateGame (EventAction e)   = gm_game %~ runEvent e
 
 
-initialModel :: Game -> GameModel
-initialModel game = GameModel 
+gameModel :: Game -> GameModel
+gameModel game = GameModel 
   { _gm_game = game
   , _gm_user = UserId 0
   , _gm_selected = Nothing

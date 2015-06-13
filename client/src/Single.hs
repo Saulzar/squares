@@ -37,8 +37,7 @@ import Game.Types
     
 singlePlayer :: forall t m. (MonadWidget t m) => GameModel -> m ()
 singlePlayer initial = do
-  window <- askWindow 
-  animate <- animationEvent window      
+  animate <- askWindow >>= animationEvent
   
   rec 
     model  <- foldMany updateGame initial actions         
@@ -58,7 +57,7 @@ singlePlayer initial = do
   
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "style.css") $ el "div" $ (singlePlayer initial) where
-    initial = initialModel initialGame
+    initial = gameModel initialGame
   
 
 -- executable squares-single

@@ -31,6 +31,7 @@ data GameAction
     | MoveAction UserMove
     | ChatAction Text
     | Animate    Int  
+    | EventAction UserEvent
       deriving (Show)
 
 

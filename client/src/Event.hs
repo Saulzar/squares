@@ -15,12 +15,12 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 
 
-filterMaybes :: (Reflex t) => Event t (Maybe a) -> Event t a
-filterMaybes = fmapMaybe id
+catMaybesE :: (Reflex t) => Event t (Maybe a) -> Event t a
+catMaybesE = fmapMaybe id
 
 
 splitMaybe :: (Reflex t) => Event t (Maybe a) -> (Event t (), Event t a)
-splitMaybe e = (unTag $ ffilter isNothing e, filterMaybes e)
+splitMaybe e = (unTag $ ffilter isNothing e, catMaybesE e)
 
 
 
