@@ -31,7 +31,8 @@ executable squares-server
                        lifted-base,
                        linear,
                        squares,
-                       binary
+                       binary,
+                       aeson
                        
   -- hs-source-dirs:      
   default-language:    Haskell2010

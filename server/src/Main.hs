@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, CPP, ConstraintKinds #-}
 
 import Data.Char (isPunctuation, isSpace)
 import Data.Monoid (mappend)
@@ -13,6 +13,10 @@ import qualified Data.Text.IO as T
 
 import qualified Data.ByteString.Lazy.Char8 as B
 import Data.ByteString.Lazy.Char8 (ByteString)
+
+import qualified Data.Aeson as A
+import Data.Aeson (FromJSON, ToJSON)
+
 
 import qualified Data.Map as M
 import Data.Foldable
@@ -43,6 +47,7 @@ data ServerState = ServerState
   
  
 $(makeLenses ''ServerState)
+$(makePrisms ''WS.DataMessage)
 
 -- Create a new, initial state:
 
@@ -112,39 +117,62 @@ clientDisconnect i state = state & server_connections %~ (M.delete i)
 
 
 
-broadcast :: (Binary a, Show a) =>  a -> Server ()
+broadcast :: (Sendable a) =>  a -> Server ()
 broadcast a = do
-    liftIO $ print a
     users <- fmap (^. server_connections) serverState
     
     for_ users $ \conn -> 
       send conn a 
 
-
-
-
+      
+      
+#ifdef USE_BINARY      
     
-send :: (MonadIO m, Binary a, Show a) => WS.Connection -> a -> m ()
+type Sendable a = (Show a, Binary a) 
+type Receivable a = (Show a, Binary a)
+    
+send :: (MonadIO m, Sendable a) => WS.Connection -> a -> m ()
 send conn msg = liftIO $ do
   putStrLn ("sending: " ++ show msg)
   WS.sendBinaryData conn str 
     where
       str = encode msg
 
-eitherDecode :: Binary a => ByteString -> Either Text a
-eitherDecode b = case decodeOrFail b of
-    Left (_, _, e)  -> Left (T.pack e)
+maybeDecode :: Binary a => ByteString -> Maybe a
+maybeDecode b = case decodeOrFail b of
+    Left _          -> Nothing
     Right (_, _, x) -> Right x
       
-receive :: (MonadIO m, Binary a, Show a) => WS.Connection -> m (Either Text a)
+receive :: (MonadIO m, Receivable a) => WS.Connection -> m (Maybe a)
 receive conn = liftIO $ do
-  str <- WS.receiveData conn
-  let r = eitherDecode str
-  putStrLn ("received: " ++ show r)
+  str <- WS.receiveDataMessage conn
+  let r = maybeDecode str
+  putStrLn ("received: " ++ show str)
   return r
        
        
+#else
 
+type Sendable a = (ToJSON a) 
+type Receivable a = (FromJSON a)
+
+send :: (MonadIO m, Sendable a) => WS.Connection -> a -> m ()
+send conn msg = liftIO $ do
+  putStrLn ("sending: " ++ show str)
+  WS.sendTextData conn str 
+    where
+      str = A.encode msg
+
+
+      
+receive :: (MonadIO m, Receivable a) => WS.Connection -> m (Maybe a)
+receive conn = liftIO $ do
+  str <- WS.receiveDataMessage conn
+
+  putStrLn ("received: " ++ show str)
+  return $ (str ^? _Text) >>= A.decode 
+  
+#endif
 
 -- serverError :: (MonadIO m) => WS.Connection -> String -> m ()
 -- serverError conn err = send conn (ServerError (T.pack err))
@@ -161,7 +189,7 @@ runUser (i, conn) = flip finally disconnect $ runUser'
     
     runUser' = do
       received <- receive conn
-      either onErr onCmd received
+      maybe onErr onCmd received
 
     runEvent' e = do 
       modifyState_ $ runEvent (i, e)
@@ -172,10 +200,10 @@ runUser (i, conn) = flip finally disconnect $ runUser'
         ClientChat msg    -> runEvent' (ChatEvent msg)
         ClientMove move   -> return () --TODO 
         ClientFrame ->  return ()
-      
+        
         
       
-    onErr err = send conn (ServerError $ T.concat ["Decode error: ", err])
+    onErr = send conn (ServerError $ "decode error")
     
     disconnect = do
       e <- modifyState $ clientDisconnect i
@@ -202,7 +230,7 @@ runUser (i, conn) = flip finally disconnect $ runUser'
 runLogin :: WS.Connection -> Server ()
 runLogin conn = do
   received <- receive conn
-  either onErr onLogin received
+  maybe onErr onLogin received
   
   where
     onLogin msg = case msg of 
@@ -215,7 +243,7 @@ runLogin conn = do
              Right (i, _)  -> runUser (i, conn)
              _             -> return ()
         
-    onErr err = send conn (loginError $ LoginDataError $ T.concat ["Decode error: ", err])
+    onErr = send conn (loginError $ LoginDataError "decode error")
     
     
 
@@ -242,7 +270,7 @@ application stateVar pending = do
 
 
 main :: IO ()
-main = do
+main = do  
   stateVar <- newTVarIO newServerState
   
   putStrLn $ "squares-server listening on "++ ip ++ ":" ++ show port

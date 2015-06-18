@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes, OverloadedStrings #-}
 
 module Squares.Types 
   ( module Squares.Game.Types
@@ -26,11 +26,12 @@ import Data.Text (Text)
 import Data.Text.Binary
 
 import Data.Binary
-import Control.Lens
+import Control.Lens hiding ( (.=) )
 import Control.Monad
+import Data.Functor
 
 import Squares.Game.Types 
-
+import Data.Aeson
 
 data ServerMsg 
     = ServerEvent UserEvent
@@ -69,3 +70,21 @@ instance Binary LoginError
 instance Binary Login
 
 
+-- One constructor/argument deriving seems to go wrong
+
+instance ToJSON Login where
+    toJSON (Login user) = object ["user" .= user]
+     
+instance FromJSON Login where
+     parseJSON (Object v) = Login <$> v .: "user"
+     parseJSON _          = mzero     
+
+instance ToJSON ServerMsg
+instance ToJSON ClientMsg
+instance ToJSON LoginError  
+-- instance ToJSON Login
+
+instance FromJSON ServerMsg
+instance FromJSON ClientMsg
+instance FromJSON LoginError  
+-- instance FromJSON Login

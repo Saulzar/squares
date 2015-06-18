@@ -23,10 +23,11 @@ library
     lens,
     linear,
     binary,
-    text-binary
+    text-binary,
+    aeson
 
     
-  default-extensions: GeneralizedNewtypeDeriving, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, RankNTypes
+  default-extensions: GeneralizedNewtypeDeriving, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleInstances, FlexibleContexts, TupleSections, RankNTypes
 
   
 

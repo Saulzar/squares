@@ -9,7 +9,8 @@
     lifted-base,
     linear,
     squares,
-    binary
+    binary,
+    aeson
 }:
 
 mkDerivation {
@@ -29,6 +30,7 @@ mkDerivation {
     linear
     squares
     binary
+    aeson
   ];
   license = null;
 }

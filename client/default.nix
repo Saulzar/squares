@@ -7,12 +7,14 @@
     ghcjs-websockets-reflex,
     containers,
     text,
+    bytestring,
     transformers,
     lens,
     linear,
     dependent-sum,
     hashable,
     binary,
+    aeson,
     time
 }:
 
@@ -29,6 +31,7 @@ mkDerivation {
     ghcjs-websockets-reflex
     containers
     text
+    bytestring
     transformers
     file-embed
     lens
@@ -36,6 +39,7 @@ mkDerivation {
     dependent-sum
     hashable
     binary
+    aeson
     time
     
   ];

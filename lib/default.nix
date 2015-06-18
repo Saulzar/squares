@@ -5,7 +5,8 @@
     lens,
     linear,
     binary,
-    text-binary
+    text-binary,
+    aeson
 }:
 
 mkDerivation {
@@ -22,6 +23,7 @@ mkDerivation {
     linear
     binary
     text-binary
+    aeson
   ];
   license = null;
 }

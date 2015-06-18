@@ -24,6 +24,7 @@ executable squares-multi
     ghcjs-websockets-reflex,
     containers,
     text,
+    bytestring,
     transformers,
     lens,
     linear,
@@ -32,6 +33,7 @@ executable squares-multi
     ghcjs-base,
     hashable,
     binary,
+    aeson,
     time  
     
   default-extensions: OverloadedStrings, DeriveGeneric, RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes

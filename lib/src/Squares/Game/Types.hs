@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes #-}
+{-# LANGUAGE RecursiveDo, ScopedTypeVariables, FlexibleContexts, TupleSections, TemplateHaskell, RankNTypes, OverloadedStrings #-}
 module Squares.Game.Types 
   ( Rotation (..)
   , Square(..)
@@ -39,10 +39,14 @@ import Data.Text.Binary
 import Data.Text (Text)
 
 import Control.Monad
-import Control.Lens
+import Data.Functor
+
+import Control.Lens hiding ((.=))
 import Linear hiding (angle, basis)
 import GHC.Generics
 import Data.Binary
+
+import Data.Aeson
 
 
 type Coord = V2 Int
@@ -68,11 +72,11 @@ data Square = Square
   } deriving (Show, Generic)
 
   
-newtype SquareId = SquareId { unSquare :: Int } deriving (Eq, Ord, Show, Generic, Binary)
+newtype SquareId = SquareId { unSquare :: Int } deriving (Eq, Ord, Show, Generic, Binary, ToJSON, FromJSON)
 
 type UserName = Text
 
-newtype UserId = UserId { unUser :: Int } deriving (Eq, Ord, Show, Generic)
+newtype UserId = UserId { unUser :: Int } deriving (Eq, Ord, Show, Generic, Binary, ToJSON, FromJSON)
 data User = User {  _user_name :: !UserName, _user_connected :: !Bool } deriving (Show, Generic)
 
 
@@ -83,7 +87,7 @@ data Game = Game
   , _game_num_players :: !Int
   , _game_started     :: !Bool
   , _game_event_log   :: [UserEvent]
-  } deriving (Show, Generic)
+  } deriving (Show, Generic) 
   
   
 data GameMove = RotateMove SquareId RotateDir deriving (Show, Generic)
@@ -111,13 +115,51 @@ instance Binary RotateDir
 instance Binary GameMove
 instance Binary GameEvent
 instance Binary User
-instance Binary UserId
-
-
 
 instance Binary a => Binary (V2 a) where
   put = putLinear
   get = getLinear
+  
+instance FromJSON Game
+instance FromJSON Square
+instance FromJSON Rotation
+instance FromJSON Dir
+instance FromJSON Corner
+instance FromJSON RotateDir
+instance FromJSON GameMove
+instance FromJSON GameEvent
+instance FromJSON User
+  
+instance ToJSON Game
+instance ToJSON Square
+instance ToJSON Rotation
+instance ToJSON Dir
+instance ToJSON Corner
+instance ToJSON RotateDir
+instance ToJSON GameMove
+instance ToJSON GameEvent
+instance ToJSON User
+
+
+
+instance (FromJSON a, FromJSON b, Ord a) => FromJSON (Map a b) where
+  parseJSON v = Map.fromList <$> parseJSON v
+
+instance (ToJSON a, ToJSON b, Ord a) => ToJSON (Map a b) where
+  toJSON = toJSON . Map.toList 
+  
+  
+instance FromJSON a => FromJSON (V2 a) where
+ parseJSON (Object v) =
+    V2 <$> v .: "x"
+       <*> v .: "y"
+ parseJSON _ = mzero
+
+instance ToJSON a => ToJSON (V2 a) where
+ toJSON (V2 x y) =
+    object [ "x"   .= toJSON x
+           , "y"   .= toJSON y
+           ]
   
   
 liftM concat $ mapM makeLenses
