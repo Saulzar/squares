@@ -82,10 +82,10 @@ makeLogin name = Login (T.pack name)
 
 
 loginBox :: (MonadWidget t m) => m (Event t Login)
-loginBox = do
+loginBox = do 
   
   text "Chose a name: "
-  t <- textInput
+  t <- textInput def
   go <- button "Go!"
   return $ fmap makeLogin $ tag (current $ _textInput_value t) go
   
@@ -143,7 +143,8 @@ playingView (conn, (uid, game)) = do
 -- --           , pure . EventAction <$> fmapMaybe (^? _ServerEvent) incoming
 --           ]
     
-    chatInput <- input' "input" "" (const "" <$> chat) (constDyn $ Map.empty) 
+    chatInput <- textInput $ 
+      def & textInputConfig_setValue .~ (const "" <$> chat)
     
     let enter = traceEvent "foo" $ ffilter (== 13) (chatInput^.textInput_keydown)
         chat  = ffilter (not . null) $ tag (current $ value chatInput) enter  
@@ -183,7 +184,7 @@ windowView = do
         playing   = fmapMaybe (^? _PlayingState) stateEvent 
     
 --     disconnected <- switchEvents (checkDisconnected pollRate) connected
-    widgetSwitch $ playingView <$> playing
+    widgetHold (return ()) (playingView <$> playing)
     
   return ()
  

@@ -116,9 +116,9 @@ instance Binary GameMove
 instance Binary GameEvent
 instance Binary User
 
-instance Binary a => Binary (V2 a) where
-  put = putLinear
-  get = getLinear
+-- instance Binary a => Binary (V2 a) where
+--   put = putLinear
+--   get = getLinear
   
 instance FromJSON Game
 instance FromJSON Square
@@ -126,7 +126,7 @@ instance FromJSON Rotation
 instance FromJSON Dir
 instance FromJSON Corner
 instance FromJSON RotateDir
-instance FromJSON GameMove
+instance FromJSON GameMove 
 instance FromJSON GameEvent
 instance FromJSON User
   
